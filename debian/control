@@ -1,0 +1,193 @@
+Source: postgresql-common
+Section: database
+Priority: optional
+Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
+Uploaders:
+ Martin Pitt <mpitt@debian.org>,
+ Christoph Berg <myon@debian.org>,
+ Peter Eisentraut <petere@debian.org>,
+Standards-Version: 4.6.0
+Rules-Requires-Root: no
+Vcs-Git: https://salsa.debian.org/postgresql/postgresql-common.git
+Vcs-Browser: https://salsa.debian.org/postgresql/postgresql-common
+Build-Depends:
+ debhelper-compat (= 13),
+
+Package: postgresql-common
+Architecture: all
+Multi-Arch: foreign
+Pre-Depends: ${misc:Pre-Depends}
+Depends:
+ adduser,
+ debconf (>= 0.5.00) | debconf-2.0,
+ libjson-perl,
+ lsb-base (>= 3.0-3),
+ postgresql-client-common (= ${source:Version}),
+ ssl-cert (>= 1.0.11),
+ ucf,
+ ${misc:Depends},
+ ${perl:Depends},
+Recommends:
+ e2fsprogs,
+ logrotate,
+Breaks:
+ postgresql-9.1 (<< 9.1.1-3~),
+# pg_buildext moved pg-s-d-all in 204
+ postgresql-server-dev-all (<< 204),
+Replaces:
+ postgresql-server-dev-all (<< 204),
+Description: PostgreSQL database-cluster manager
+ The postgresql-common package provides a structure under which
+ multiple versions of PostgreSQL may be installed and/or multiple
+ clusters maintained at one time.
+ .
+ The commands provided are pg_conftool, pg_createcluster, pg_ctlcluster,
+ pg_dropcluster, pg_lsclusters, pg_renamecluster, pg_upgradecluster,
+ pg_virtualenv.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system. It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects. Its features include ACID
+ transactions, foreign keys, views, sequences, subqueries, triggers,
+ outer joins, multiversion concurrency control, and user-defined types
+ and functions.
+
+Package: postgresql-client-common
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ netbase,
+ ${misc:Depends},
+ ${perl:Depends},
+ ${pgdg:Depends},
+Description: manager for multiple PostgreSQL client versions
+ The postgresql-client-common package provides a structure under which
+ multiple versions of PostgreSQL client programs may be installed at
+ the same time. It provides a wrapper which selects the right version
+ for the particular cluster you want to access (with a command line
+ option, an environment variable, /etc/postgresql-common/user_clusters,
+ or ~/.postgresqlrc).
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system. It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects. Its features include ACID
+ transactions, foreign keys, views, sequences, subqueries, triggers,
+ outer joins, multiversion concurrency control, and user-defined types
+ and functions.
+
+Package: postgresql-server-dev-all
+Architecture: any
+Multi-Arch: same
+Depends:
+ make:any,
+ postgresql-common (= ${source:Version}),
+ ${misc:Depends},
+ ${server-dev-all-depends},
+Description: extension build tool for multiple PostgreSQL versions
+ The postgresql-server-dev-all package provides the pg_buildext script for
+ simplifying packaging of a PostgreSQL extension supporting multiple major
+ versions of the product, and dh_make_pgxs which builds a template debian/
+ source package directory based on pg_buildext.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system. It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects. Its features include ACID
+ transactions, foreign keys, views, sequences, subqueries, triggers,
+ outer joins, multiversion concurrency control, and user-defined types
+ and functions.
+
+Package: postgresql
+Architecture: all
+Depends:
+ postgresql-${default-version},
+ ${misc:Depends},
+Suggests:
+ postgresql-doc,
+Description: object-relational SQL database (supported version)
+ This metapackage always depends on the currently supported PostgreSQL
+ database server version.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system.  It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects.  Some of the features are:
+ ACID transactions, foreign keys, views, sequences, subqueries,
+ triggers, user-defined types and functions, outer joins, multiversion
+ concurrency control.  Graphical user interfaces and bindings for many
+ programming languages are available as well.
+
+Package: postgresql-client
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ postgresql-client-${default-version},
+ ${misc:Depends},
+Description: front-end programs for PostgreSQL (supported version)
+ This metapackage always depends on the currently supported database
+ client package for PostgreSQL.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system.  It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects.  Some of the features are:
+ ACID transactions, foreign keys, views, sequences, subqueries,
+ triggers, user-defined types and functions, outer joins, multiversion
+ concurrency control.  Graphical user interfaces and bindings for many
+ programming languages are available as well.
+
+Package: postgresql-doc
+Architecture: all
+Multi-Arch: foreign
+Section: doc
+Depends:
+ postgresql-doc-${default-version},
+ ${misc:Depends},
+Description: documentation for the PostgreSQL database management system
+ This metapackage always depends on the currently supported PostgreSQL
+ database documentation package.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system.  It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects.  Some of the features are:
+ ACID transactions, foreign keys, views, sequences, subqueries,
+ triggers, user-defined types and functions, outer joins, multiversion
+ concurrency control.  Graphical user interfaces and bindings for many
+ programming languages are available as well.
+
+Package: postgresql-contrib
+Architecture: all
+Depends:
+ postgresql-contrib-${default-version},
+ ${misc:Depends},
+Description: additional facilities for PostgreSQL (supported version)
+ This metapackage always depends on the currently supported PostgreSQL
+ database contrib package.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system.  It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects.  Some of the features are:
+ ACID transactions, foreign keys, views, sequences, subqueries,
+ triggers, user-defined types and functions, outer joins, multiversion
+ concurrency control.  Graphical user interfaces and bindings for many
+ programming languages are available as well.
+
+Package: postgresql-all
+Architecture: all
+Depends:
+ libecpg-dev,
+ libpq-dev,
+ postgresql-common (= ${source:Version}),
+ postgresql-server-dev-all,
+ ${postgresql-all-depends},
+ ${misc:Depends},
+Description: metapackage depending on all PostgreSQL server packages
+ This metapackage depends on all PostgreSQL server packages, in all
+ supported versions (excluding documentation and debug symbols). It
+ exists to facilitate depending on the server packages in test
+ environments.
+ .
+ PostgreSQL is a fully featured object-relational database management
+ system.  It supports a large part of the SQL standard and is designed
+ to be extensible by users in many aspects.  Some of the features are:
+ ACID transactions, foreign keys, views, sequences, subqueries,
+ triggers, user-defined types and functions, outer joins, multiversion
+ concurrency control.  Graphical user interfaces and bindings for many
+ programming languages are available as well.

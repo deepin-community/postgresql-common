@@ -1,0 +1,144 @@
+#!/usr/bin/perl -w
+
+# Add, remove, or test a pg_hba.conf entry.
+#
+# (C) 2005-2009 Martin Pitt <mpitt@debian.org>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+
+use strict;
+use PgCommon;
+use Getopt::Long;
+use Net::CIDR;
+
+# global variables
+
+my $ip = ''; # default to local unix socket
+my $force_ssl = 0;
+my ($method, $ver_cluster, $db, $user);
+my $mode;
+my @hba;
+
+# Print an error message to stderr and exit with status 2
+sub error2 {
+    print STDERR 'Error: ', $_[0], "\n";
+    exit 2;
+}
+
+# Check if s1 is equal to s2 or s2 is 'all'.
+# Arguments: <s1> <s2>
+sub match_all {
+    return ($_[1] eq 'all' || $_[0] eq $_[1]);
+}
+
+# Check if given IP matches the specification in the HBA record.
+# Arguments: <ip> <ref to hba hash>
+sub match_ip {
+    my ($ip, $hba) = @_;
+
+    # Don't try to mix IPv4 and IPv6 addresses since that will make cidrlookup
+    # croak
+    return 0 if ((index $ip, ':') < 0) ^ ((index $$hba{'ip'}, ':') < 0);
+
+    return Net::CIDR::cidrlookup ($ip, $$hba{'ip'});
+}
+
+# Check if arguments match any line 
+# Return: 1 if match was found, 0 otherwise.
+sub mode_test {
+    foreach my $hbarec (@hba) {
+	if (!defined($$hbarec{'type'})) {
+	    next;
+	}
+	next if $$hbarec{'type'} eq 'comment';
+	next unless match_all ($user, $$hbarec{'user'}) &&
+		match_all ($db, $$hbarec{'db'}) &&
+		$$hbarec{'method'} eq $method;
+
+	if ($ip) {
+	    return 1 if 
+		(($force_ssl && $$hbarec{'type'} eq 'hostssl') || 
+		 $$hbarec{'type'} =~ /^host/) &&
+		match_ip ($ip, $hbarec);
+	} else {
+	    return 1 if $$hbarec{'type'} eq 'local';
+	}
+    }
+
+    return 0;
+}
+
+# Print hba conf.
+sub mode_print {
+    foreach my $hbarec (@hba) {
+        print "$$hbarec{'line'}\n";
+    }
+}
+
+# Generate a pg_hba.conf line that matches the command line args.
+sub create_hba_line {
+    if ($ip) {
+	return sprintf "%-7s %-11s %-11s %-35s %s\n", 
+	    $force_ssl ? 'hostssl' : 'host', $db, $user, $ip, $method;
+    } else {
+	return sprintf "%-7s %-11s %-47s %s\n", 'local', $db, $user, $method;
+    }
+}
+
+# parse arguments
+
+my $ip_arg;
+exit 3 unless GetOptions (
+    'cluster=s' => \$ver_cluster, 
+    'ip=s' => \$ip_arg, 
+    'method=s' => \$method,
+    'force-ssl' => \$force_ssl
+);
+
+if ($#ARGV != 2) {
+    print STDERR "Usage: $0 mode [options] <database> <user>\n";
+    exit 2;
+}
+($mode, $db, $user) = @ARGV;
+
+error2 '--cluster must be specified' unless $ver_cluster;
+my ($version, $cluster) = split ('/', $ver_cluster);
+error2 'No version specified with --cluster' unless $version;
+error2 'No cluster specified with --cluster' unless $cluster;
+error2 'Cluster does not exist' unless cluster_exists $version, $cluster;
+if (defined $ip_arg) {
+    $ip = Net::CIDR::cidrvalidate $ip_arg;
+    error2 'Invalid --ip argument' unless defined $ip;
+}
+
+unless (defined $method) {
+    $method = ($ip ? 'md5' : 'ident sameuser');
+}
+error2 'Invalid --method argument' unless PgCommon::valid_hba_method($method);
+
+# parse file
+
+my $hbafile = "/etc/postgresql/$version/$cluster/pg_hba.conf";
+@hba = read_pg_hba $hbafile;
+error2 "Could not read $hbafile" unless $#hba;
+
+if ($mode eq 'pg_test_hba') { 
+    if (mode_test) {
+	exit 0;
+    } else {
+	print create_hba_line();
+	exit 1;
+    }
+} elsif ($mode eq 'pg_print_hba') {
+    mode_print();
+} else {
+    error2 "Unknown mode: $mode";
+}

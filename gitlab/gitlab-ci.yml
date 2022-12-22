@@ -1,0 +1,13 @@
+# gitlab-ci.yml file for the Debian PostgreSQL packages
+# to be used in debian/gitlab-ci.yml:
+# include: https://salsa.debian.org/postgresql/postgresql-common/raw/master/gitlab/gitlab-ci.yml
+
+include:
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/salsa-ci.yml
+  - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/pipeline-jobs.yml
+
+variables:
+  PG_UPDATECONTROL: 'yes' # tell pg_buildext to automatically generate debian/control from debian/control.in (TODO: doesn't work this way yet)
+  SALSA_CI_DISABLE_REPROTEST: 'yes' # too many packages fail because reprotest runs the build as root, disable for now
+  SALSA_CI_REPROTEST_ENABLE_DIFFOSCOPE: 'yes'
+  SALSA_CI_DISABLE_CROSSBUILD_ARM64: 'yes' # clang isn't ready for cross-building yet

@@ -1,0 +1,54 @@
+Template: postgresql-common/obsolete-major
+Type: error
+_Description: Obsolete major version ${old}
+ The PostgreSQL version ${old} is obsolete, but the server
+ or client packages are still installed. Please install the latest packages
+ (postgresql-${latest} and postgresql-client-${latest}) and upgrade the
+ existing ${oldversion} clusters with pg_upgradecluster (see manpage).
+ .
+ Please be aware that the installation of postgresql-${latest} will
+ automatically create a default cluster ${latest}/main. If you want to upgrade
+ the ${old}/main cluster, you need to remove the already existing ${latest}
+ cluster (pg_dropcluster --stop ${latest} main, see manpage for
+ details).
+ .
+ The old server and client packages are no longer supported. After the
+ existing clusters are upgraded, the postgresql-${old} and
+ postgresql-client-${old} packages should be removed.
+ .
+ Please see /usr/share/doc/postgresql-common/README.Debian.gz for details.
+
+Template: postgresql-common/ssl
+Type: boolean
+Default: true
+_Description: Enable SSL by default in new PostgreSQL clusters?
+ PostgreSQL supports SSL-encrypted connections. This is usually a good thing.
+ However, if the database is solely accessed using TCP connections on
+ localhost, SSL can be turned off without introducing security issues.
+ .
+ UNIX domain socket connections (called "local" in pg_hba.conf) are not
+ affected by this setting. This setting concerns new PostgreSQL clusters
+ created during package install, or by using the pg_createcluster command. It
+ does not reconfigure existing clusters.
+ .
+ If unsure, enable SSL.
+
+# The last paragraph of this note does not appear in PO files.
+# It contains shell commands and should not be translated.
+Template: postgresql-common/catversion-bump
+Type: note
+#flag:translate:1,2,3
+_Description: PostgreSQL ${version} catalog version changed
+ The PostgreSQL cluster ${version} ${cluster} was created using catalog
+ version ${db_catversion}, but the currently being installed package
+ postgresql-${version} is using catalog version ${new_catversion}. You will not
+ be able to use this cluster until it was upgraded to the new catalog version.
+ .
+ The necessary subset of binaries from the old version was saved in
+ ${vartmpdir}. To upgrade the cluster, execute these commands:
+ .
+   pg_renamecluster ${version} ${cluster} ${cluster}.old
+   pg_upgradecluster ${version} ${cluster}.old --rename ${cluster} \
+     -m upgrade --old-bindir=${vartmpdir}/bin
+   pg_dropcluster ${version} ${cluster}.old
+   rm -rf ${vartmpdir}

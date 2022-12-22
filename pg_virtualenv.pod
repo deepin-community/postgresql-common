@@ -1,0 +1,122 @@
+=head1 NAME
+
+pg_virtualenv - Create a throw-away PostgreSQL environment for running regression tests
+
+=head1 SYNOPSIS
+
+B<pg_virtualenv> [I<OPTIONS>] [B<-v> 'I<version ...>'] [I<command>]
+
+=head1 DESCRIPTION
+
+B<pg_virtualenv> creates a virtual PostgreSQL server environment, and sets
+environment variables such that I<command> can access the PostgreSQL database
+server(s). The servers are destroyed when I<command> exits.
+
+The environment variables B<PGHOST>, B<PGDATABASE>, B<PGUSER>, and
+B<PGPASSWORD> will be set. Per default, a single new cluster is created,
+using the newest PostgreSQL server version installed. The cluster will use the
+first available port number starting from B<5432>, and B<PGPORT> will be set.
+B<PGVERSION> is set the the PostgreSQL major version number.
+
+When clusters for more than one versions are created, they will differ in the
+port number used, and B<PGPORT> and B<PGVERSION> are not set. The clusters are
+named I<version>/regress. To access a cluster, set
+B<PGCLUSTER=>I<version>B</regress>. For ease of access, the clusters are also
+registered in F</etc/postgresql-common/pg_service.conf>, with the version
+number as cluster name. Clusters can be accessed by passing the connection
+string "B<service=>I<version>", e.g. B<psql service=9.2>.
+
+When invoked as root, the clusters are created in F</etc/postgresql/> as usual;
+for other users, B<PG_CLUSTER_CONF_ROOT> and B<PGSYSCONFDIR> are
+set to a temporary directory where all files belonging to the clusters are
+created.
+
+If I<command> fails, the tail of the PostgreSQL server log is shown.
+Additionally, if B<gdb> is available, the backtrace from any PostgreSQL
+coredump is show.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>
+
+Use all PostgreSQL server versions installed.
+
+=item B<-v> I<version ...>
+
+Use these versions (space-separated list).
+
+=item B<-c> I<pg_createcluster options>
+
+Extra options to pass to B<pg_createcluster>.
+
+=item B<-i> I<initdb options>
+
+Extra initdb options to pass to B<pg_createcluster>.
+
+=item B<-o> I<guc>B<=>I<value>
+
+Configuration option to set in the C<postgresql.conf> file, passed to
+B<pg_createcluster>.
+
+=item B<-p> I<package>
+
+Set B<extension_destdir> and B<dynamic_library_path> in cluster to enable
+loading and testing extensions at build-time from B<debian/>I<package>B</>.
+
+This is a Debian-specific PostgreSQL patch.
+
+=item B<-s>
+
+Launch a shell inside the virtual environment when I<command> fails.
+
+=item B<-t>
+
+Install clusters in a temporary directory, even when running as root.
+
+=item B<-h>
+
+Show program help.
+
+=back
+
+=head1 EXAMPLE
+
+  # pg_virtualenv make check
+
+=head1 NOTES
+
+When run with fakeroot(1), B<pg_virtualenv> will fall back to the non-root mode
+of operation. Running "fakeroot pg_virtualenv" as root will fail, though.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<PG_VIRTUALENV_NEWPID>=yes
+
+When non-empty, B<pg_virtualenv> will re-exec itself using newpid(1).
+
+=item B<PG_VIRTUALENV_UNSHARE>=I<flags>
+
+When non-empty, B<pg_virtualenv> will re-exec itself using unshare(1) using
+these flags.
+
+=item B<PGPORT>=I<n>
+
+When set, the value is used for the (single) cluster created.
+
+=back
+
+=head1 COMPATIBILITY
+
+B<PGVERSION> is set in postgresql-common (>= 219~).
+
+=head1 SEE ALSO
+
+initdb(1), pg_createcluster(1).
+
+=head1 AUTHOR
+
+Christoph Berg L<E<lt>myon@debian.orgE<gt>>

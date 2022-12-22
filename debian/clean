@@ -1,0 +1,11 @@
+supported_versions
+tags
+t/foo/foo-123/build-*/
+t/foo/foo-123/debian/
+t/foo/foo_*
+rpm/BUILD/
+rpm/BUILDROOT/
+rpm/RPMS/
+rpm/SOURCES/
+rpm/SPECS/
+rpm/SRPMS/

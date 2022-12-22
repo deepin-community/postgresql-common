@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+
+VERSION := $(shell dpkg-parsechangelog | awk '/^Version:/ { print $$2 }')
+ifneq ($(findstring bpo,$(VERSION)),)
+	FLAVOR := debian-backports
+else ifneq ($(findstring pgdg,$(VERSION)),)
+	FLAVOR := pgdg
+	# for apt.postgresql.org builds, pull in the repository key package
+	PGDG_DEPENDS := pgdg-keyring
+else
+	FLAVOR := default
+endif
+SUPPORTED_VERSIONS := $(shell PG_SUPPORTED_VERSIONS="$(FLAVOR)" debian/supported-versions)
+DEFAULT_VER := $(lastword $(SUPPORTED_VERSIONS))
+
+#py2#PYTHON2_PACKAGE=postgresql-plpython-$v
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	@echo "### Building postgresql-common flavor $(FLAVOR)"
+	@echo "### Supported PostgreSQL versions: $(SUPPORTED_VERSIONS) (default version: $(DEFAULT_VER))"
+	echo "# See /usr/share/postgresql-common/supported-versions for documentation of this file" > supported_versions
+	echo "$(FLAVOR)" >> supported_versions
+
+# do not (re)start postgresql.service on postgresql-common install/upgrades
+override_dh_installinit:
+	dh_installinit -ppostgresql-common --name=postgresql -u'defaults 19 21' --no-start
+override_dh_installsystemd:
+	dh_installsystemd --no-start
+
+override_dh_gencontrol:
+	dh_gencontrol -ppostgresql-server-dev-all -- -Vserver-dev-all-depends="$(foreach v,$(SUPPORTED_VERSIONS),postgresql-server-dev-$v,)"
+
+	# the versionless metapackages need to have version numbers which match
+	# the server version, not the p-common version
+	dh_gencontrol -ppostgresql -ppostgresql-client -ppostgresql-doc -ppostgresql-contrib -- \
+		-Vdefault-version="$(DEFAULT_VER)" -v'$(DEFAULT_VER)+$${source:Version}'
+
+	dh_gencontrol -ppostgresql-client-common -- \
+		-Vpgdg:Depends="$(PGDG_DEPENDS)"
+
+	dh_gencontrol -ppostgresql-all -- \
+		-Vpostgresql-all-depends="$(foreach v,$(SUPPORTED_VERSIONS),postgresql-contrib-$v,postgresql-plperl-$v,$(if $(filter 8.% 9.% 10 11, $v), $(PYTHON2_PACKAGE)),postgresql-plpython3-$v,postgresql-pltcl-$v,)"
+
+	dh_gencontrol --remaining-packages

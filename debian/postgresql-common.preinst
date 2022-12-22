@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+    install|upgrade)
+	dpkg-divert --package postgresql-common --rename --divert /usr/bin/pg_config.libpq-dev --add /usr/bin/pg_config
+        ;;
+
+    abort-upgrade)
+        ;;
+
+    *)
+        echo "$0 called with unknown argument \`$1'" 1>&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
