@@ -10,9 +10,11 @@ Type=simple
 User=postgres
 ExecStartPre=+/usr/bin/pg_backupcluster %i createdirectory
 ExecStart=/usr/bin/pg_backupcluster %i receivewal
-ExecStopPost=/usr/bin/pg_backupcluster %i compresswal
 Restart=on-failure
 RestartSec=1min
+# pg_receivewal only flushes compressed output on SIGINT
+# (https://www.postgresql.org/message-id/flat/Yvo/5No5S0c4EFMj%40msg.df7cb.de)
+KillSignal=SIGINT
 
 [Install]
 # when enabled, start along with postgresql@%i

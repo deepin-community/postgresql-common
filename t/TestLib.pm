@@ -1,7 +1,7 @@
 # Common functionality for postgresql-common self tests
 #
 # (C) 2005-2009 Martin Pitt <mpitt@debian.org>
-# (C) 2013-2020 Christoph Berg <myon@debian.org>
+# (C) 2013-2022 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ package TestLib;
 use strict;
 use Exporter;
 use Test::More;
-use PgCommon qw/get_versions change_ugid/;
+use PgCommon qw/get_versions change_ugid next_free_port/;
 
 our $VERSION = 1.00;
 our @ISA = ('Exporter');
@@ -128,7 +128,8 @@ sub pidof {
 
 # Return an reference to an array of all entries but . and .. of the given directory.
 sub dircontent {
-    opendir D, $_[0] or die "opendir: $!";
+    my $dir = $_[0];
+    opendir D, $dir or return ["opendir $dir: $!"];
     my @e = grep { $_ ne '.' && $_ ne '..' } readdir (D);
     closedir D;
     return \@e;
@@ -255,8 +256,15 @@ sub check_clean {
     # complain about missing directories
     ok_dir '/var/log/postgresql', [], "No files in /var/log/postgresql left behind";
 
-    is_program_out 0, 'netstat -avptn 2>/dev/null | grep ":543[2-9]\\b.*LISTEN"', 1, '',
-	'PostgreSQL TCP ports are closed';
+    # prefer ss over netstat (until all debian/tests/control files in postgresql-* have been updated)
+    unless (-x '/bin/netstat' and not -x '/bin/ss') {
+        is `ss --no-header -tlp 'sport >= 5432 and sport <= 5439'`, '',
+            'PostgreSQL TCP ports are closed';
+    } else {
+        is `netstat -avptn 2>/dev/null | grep ":543[2-9]\\b.*LISTEN"`, '',
+            'PostgreSQL TCP ports are closed';
+    }
+    is next_free_port(), 5432, "Next free port is 5432";
 }
 
 1;

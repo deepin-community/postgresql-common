@@ -11,12 +11,15 @@ use Test::More tests => 125;
 
 # create fake socket at 5433 to verify that this port is skipped
 socket (SOCK, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or die "socket: $!";
+setsockopt(SOCK, Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1) or die "setsockopt: $!";
 bind (SOCK, sockaddr_in(5433, INADDR_ANY)) || die "bind: $! ";
+listen (SOCK, 0) or die "listen: $!";
 
 # create clusters
 is ((system "pg_createcluster $MAJORS[0] old -- -A trust >/dev/null"), 0, "pg_createcluster $MAJORS[0] old");
 is ((system "pg_createcluster $MAJORS[-1] new1 -- -A trust >/dev/null"), 0, "pg_createcluster $MAJORS[-1] new1");
 is ((system "pg_createcluster $MAJORS[-1] new2 -p 5440 -- -A trust >/dev/null"), 0, "pg_createcluster $MAJORS[-1] new2");
+close SOCK;
 
 my $old = "$MAJORS[0]/old";
 my $new1 = "$MAJORS[-1]/new1";

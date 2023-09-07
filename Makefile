@@ -16,7 +16,7 @@ POD1PROGS_POD = pg_buildext.1 \
 		dh_make_pgxs/dh_make_pgxs.1
 POD8PROGS = pg_updatedicts.8
 
-all: man
+all: man sub-pgdg
 
 man: $(POD1PROGS) $(POD1PROGS_POD) $(POD8PROGS)
 
@@ -31,6 +31,9 @@ man: $(POD1PROGS) $(POD1PROGS_POD) $(POD8PROGS)
 
 clean:
 	rm -f *.1 *.8 debhelper/*.1 dh_make_pgxs/*.1
+
+sub-pgdg:
+	$(MAKE) -C pgdg
 
 # rpm
 

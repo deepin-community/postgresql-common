@@ -76,7 +76,8 @@ sed -i -e 's/#redhat# //' \
     %{buildroot}/usr/bin/pg_config \
     %{buildroot}/usr/bin/pg_virtualenv \
     %{buildroot}/usr/share/perl5/PgCommon.pm \
-    %{buildroot}/usr/share/postgresql-common/init.d-functions
+    %{buildroot}/usr/share/postgresql-common/init.d-functions \
+    %{buildroot}/usr/share/postgresql-common/pg_getwal
 # install init script
 mkdir -p %{buildroot}/etc/init.d %{buildroot}/etc/logrotate.d
 cp debian/postgresql-common.postgresql.init %{buildroot}/etc/init.d/postgresql

@@ -4,7 +4,7 @@
 # /etc/postgresql-common/user_clusters.
 #
 # (C) 2005-2009 Martin Pitt <mpitt@debian.org>
-# (C) 2013-2021 Christoph Berg <myon@debian.org>
+# (C) 2013-2022 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ use PgCommon;
 
 my ($version, $cluster);
 my $explicit_host = exists $ENV{PGHOST};
-my $explicit_port = exists $ENV{PGPORT};
+my $explicit_port = $ENV{PGPORT};
 my $explicit_service = exists $ENV{PGSERVICE};
 
 # Evaluate PGCLUSTER (unless PGHOST is set as well)
@@ -61,8 +61,12 @@ for (my $i = 0; $i <= $#ARGV; ++$i) {
         delete $ENV{PGCLUSTER};
     }
     # --port or -p on command line
-    if ($ARGV[$i] =~ /^--port\b/ || $ARGV[$i] =~ /^-\w*p\w*$/) {
-        $explicit_port = 1;
+    if ($ARGV[$i] =~ /^--port\b(?:=(\d+))?/ || $ARGV[$i] =~ /^-\w*p(\d+)?$/) {
+        if (defined $1) {
+            $explicit_port = $1;
+        } elsif ($i < $#ARGV) {
+            $explicit_port = $ARGV[$i+1];
+        }
     }
     # "service=" in connection string
     if ($ARGV[$i] =~ /\bservice=/) {
@@ -70,11 +74,25 @@ for (my $i = 0; $i <= $#ARGV; ++$i) {
     }
 }
 
-my ($db);
+# if only a port is specified, look for local cluster on specified port
+if ($explicit_port and not $version and not $cluster and not $explicit_host and not $explicit_service) {
+    LOOP: foreach my $v (reverse get_versions()) {
+        foreach my $c (get_version_clusters $v) {
+            my $p = get_cluster_port $v, $c;
+            if ($p eq $explicit_port) {
+                $version = $v;
+                # set PGCLUSTER variable for information
+                $ENV{PGCLUSTER} = "$version/$c";
+                last LOOP;
+            }
+        }
+    }
+}
 
-# if we don't have a cluster, and no specific host was given, consult postgresqlrc
+# if we don't have a cluster, and no specific host or port was given, consult postgresqlrc
 # or fall back to default port cluster (on 5432), or undef otherwise
-($version, $cluster, $db) = user_cluster_map() unless ($cluster or $explicit_host);
+my ($db);
+($version, $cluster, $db) = user_cluster_map() unless ($cluster or $explicit_host or $explicit_port);
 
 my ($host, $port);
 
@@ -110,7 +128,11 @@ unless ($version or $explicit_host or $explicit_port or $explicit_service) {
 # if we have no version yet, use the latest version. If we were called as psql,
 # pg_archivecleanup, or pg_isready, always use latest version
 if (not $version or $cmdname =~ /^(psql|pg_archivecleanup|pg_isready)$/) {
-    $version = get_newest_version($cmdname);
+    my $max_version;
+    if ($version and $version < 9.2) { # psql 15 only supports PG 9.2+
+        $max_version = 14;
+    }
+    $version = get_newest_version($cmdname, $max_version);
 }
 unless ($version) {
     error 'You must install at least one postgresql-client-<version> package';
@@ -186,39 +208,44 @@ precedence:
 
 =over
 
-=item 1.
+=item
 
 explicit specification with the B<--host> option
 
-=item 2.
+=item
 
 explicit specification with the B<--cluster> option
 
-=item 3.
+=item
 
 if the B<PGHOST> environment variable is set, no further cluster selection is
 performed. The default PostgreSQL version and port number (from the command
 line, the environment variable B<PGPORT>, or default 5432) will be used.
 
-=item 4.
+=item
 
 explicit specification with the B<PGCLUSTER> environment variable
 
-=item 5.
+=item
+
+if a port is given (either via B<-p>, B<--port>, or B<PGPORT>), and no host is
+given, the local cluster matching that port number is used
+
+=item
 
 matching entry in C<~/.postgresqlrc> (see L<postgresqlrc(5)>), if that
 file exists
 
-=item 6.
+=item
 
 matching entry in C</etc/postgresql-common/user_clusters> (see
 L<user_clusters(5)>), if that file exists
 
-=item 7.
+=item
 
 If only one cluster exists on the local system, that one will be selected.
 
-=item 8.
+=item
 
 If several clusters exist on the local system, the one listening on the default port 5432
 will be selected.
@@ -231,6 +258,7 @@ variables and the program called will likely error out with a message like
 
 For B<psql>, B<pg_archivecleanup>, and B<pg_isready>, B<pg_wrapper> will always use the binary from
 the newest PostgreSQL version installed, as these are downwards compatible.
+If the cluster version is older than 9.2, the newest considered binary version is 14.
 
 Note that B<pg_wrapper> needs to be able to read the server config to get the
 port number to connect to. If a non-standard port is configured in a place that

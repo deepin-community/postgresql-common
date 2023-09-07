@@ -1,0 +1,12 @@
+#!/bin/sh
+
+. $HOME/apt.postgresql.org/pgapt.conf
+
+set -eux
+
+sed -i \
+    -e "s/^PG_BETA_VERSION=.*/PG_BETA_VERSION=\"${PG_BETA_VERSION:-}\"/" \
+    -e "s/^PG_DEVEL_VERSION=.*/PG_DEVEL_VERSION=\"$PG_DEVEL_VERSION\"/" \
+    -e "s/^PG_REPOSITORY_DISTS=.*/PG_REPOSITORY_DISTS=\"$PG_REPOSITORY_DISTS\"/" \
+    -e "s/^PG_ARCHIVE_DISTS=.*/PG_ARCHIVE_DISTS=\"$PG_ARCHIVE_DISTS\"/" \
+    apt.postgresql.org.sh

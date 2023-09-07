@@ -274,9 +274,10 @@ sub receivewal() {
 
     # launch pg_receivewal
     $ENV{PGAPPNAME} = "pg_receivewal\@$version-$cluster.service";
-    exec {$pg_receivewal} $pg_receivewal, "--cluster", "$version/$cluster",
-        "-D", $waldir, "--slot", "pg_receivewal_service"
-        or error "exec $pg_receivewal: $!";
+    my @cmd = ($pg_receivewal, "--cluster", "$version/$cluster",
+        "-D", $waldir, "--slot", "pg_receivewal_service");
+    push @cmd, "--compress=5" if ($version >= 10);
+    exec {$pg_receivewal} @cmd or error "exec $pg_receivewal: $!";
 }
 
 sub compresswal() {
@@ -410,6 +411,7 @@ if ($action eq 'createdirectory') {
     create_directory();
     switch_to_cluster_owner();
     create_wal_directory();
+    compresswal();
     receivewal();
 
 } elsif ($action eq 'compresswal') {
@@ -481,7 +483,7 @@ Remove all but last the I<N> dumps.
 
 =item B<receivewal>
 
-Launch pg_receivewal.
+Launch pg_receivewal. WAL files are gzip-compressed in PG 10+.
 
 =item B<compresswal>
 

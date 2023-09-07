@@ -16,7 +16,8 @@ Build-Depends:
 Package: postgresql-common
 Architecture: all
 Multi-Arch: foreign
-Pre-Depends: ${misc:Pre-Depends}
+Pre-Depends:
+ ${misc:Pre-Depends},
 Depends:
  adduser,
  debconf (>= 0.5.00) | debconf-2.0,
@@ -30,11 +31,14 @@ Depends:
 Recommends:
  e2fsprogs,
  logrotate,
+Conflicts:
+ pgdg-keyring,
 Breaks:
  postgresql-9.1 (<< 9.1.1-3~),
 # pg_buildext moved pg-s-d-all in 204
  postgresql-server-dev-all (<< 204),
 Replaces:
+ pgdg-keyring,
  postgresql-server-dev-all (<< 204),
 Description: PostgreSQL database-cluster manager
  The postgresql-common package provides a structure under which
@@ -59,7 +63,6 @@ Depends:
  netbase,
  ${misc:Depends},
  ${perl:Depends},
- ${pgdg:Depends},
 Description: manager for multiple PostgreSQL client versions
  The postgresql-client-common package provides a structure under which
  multiple versions of PostgreSQL client programs may be installed at
@@ -176,8 +179,8 @@ Depends:
  libpq-dev,
  postgresql-common (= ${source:Version}),
  postgresql-server-dev-all,
- ${postgresql-all-depends},
  ${misc:Depends},
+ ${postgresql-all-depends},
 Description: metapackage depending on all PostgreSQL server packages
  This metapackage depends on all PostgreSQL server packages, in all
  supported versions (excluding documentation and debug symbols). It

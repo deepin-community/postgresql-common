@@ -1,8 +1,87 @@
-postgresql-common (241) UNRELEASED; urgency=medium
+postgresql-common (248) unstable; urgency=medium
 
-  * update
+  [ Christoph Berg ]
+  * Update ro debconf translation, mulțumesc Remus-Gabriel Chelu!
 
- -- Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>  Wed, 27 Jul 2022 13:56:27 +0800
+  [ Athos Ribeiro ]
+  * Fix set_conffile_value comment parsing regular expression.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 14 Mar 2023 15:19:01 +0100
+
+postgresql-common (247) unstable; urgency=medium
+
+  [ Christoph Berg ]
+  * Update pt_BR debconf translation, thanks Paulo Henrique de Lima Santana!
+    (Closes: #1024197)
+  * postgresql.mk: Ignore test failures on alpha.
+  * pgdg/apt.postgresql.org.sh: Fix version comparisons for 9.x.
+  * pg_upgradecluster: Remove promote_trigger_file in PG16.
+  * t/200_maintscripts.t: Run apt-get update before reinstalling pg-common.
+
+  [ Dennis Schwan ]
+  * Fix pgsql-XX isn't numeric in numeric comparison. (Salsa #31)
+
+ -- Christoph Berg <myon@debian.org>  Thu, 09 Feb 2023 11:28:43 +0100
+
+postgresql-common (246) unstable; urgency=medium
+
+  * pg_buildext: If PGVERSION appears outside the package name only, fill in
+    the newest supported version.
+  * pg_wrapper: Select cluster based on port number as well.
+  * t/020_create_sql_remove.t: Fix pgwrapper+psql version test on pre-9.2.
+  * pgdg: Include .asc and .gpg keys from pgdg-keyring; upgrade
+    apt.postgresql.org.sh to write pgdg.sources instead of pgdg.list.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 10 Nov 2022 15:06:56 +0100
+
+postgresql-common (245) unstable; urgency=medium
+
+  [ Marco Nenciarini ]
+  * pgdg: fix unbound variable error with empty PGVERSION.
+
+  [ Christoph Berg ]
+  * server/postgresql.mk: EXCLUDE_PACKAGES to skip building libs, used now for
+    postgresql-14 in bookworm when postgresql-15 has already been uploaded.
+  * server/postgresql.mk: Skip building -doc package when nodoc is selected.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 22 Oct 2022 14:46:03 +0200
+
+postgresql-common (244) unstable; urgency=medium
+
+  * debian/supported-versions: Bump default version to 15.
+  * dh_install{init,systemd}: Use --no-stop-on-upgrade and to not restart any
+    services on postgresql-common upgrades. (Closes: #1011067)
+  * debian/maintscripts-functions: Add -v to pg_upgradecluster template to
+    stay on the same major version on catversion upgrades.
+  * pg_upgradecluster: Fix port handling when --rename is used.
+
+ -- Christoph Berg <myon@debian.org>  Fri, 14 Oct 2022 10:59:12 +0200
+
+postgresql-common (243) unstable; urgency=medium
+
+  * pg_backupcluster: Enable gzip compression with pg_receivewal.
+  * next_free_port: Set SO_REUSEADDR and listen() on sockets created.
+  * t/TestLib.pm check_clean: Use ss from iproute2 instead of netstat.
+  * debian/supported-versions: Don't look at the OS release, we'll just ship
+    the matching file in that release.
+  * Test-depend on locales-all.
+  * pgcommon.sh: Remove, dropping get_release and locale_gen.
+  * postgresql.service: Improve comment explaining the relation to
+    postgresql@.service.
+  * testsuite: Run all tests even when one is failing.
+  * pg_wrapper: If the cluster version is older than 9.2, consider psql only
+    up to version 14 instead of the newest version.
+  * Use grep -E instead of egrep.
+  * debian/rules: Use DEB_VERSION instead of dpkg-parsechangelog.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 08 Sep 2022 15:34:54 +0200
+
+postgresql-common (242) unstable; urgency=medium
+
+  * server/postgresql.mk: Tell pg_upgrade to create sockets in /tmp.
+  * pg_virtualenv: Unset PGHOSTADDR PGPORT PGSERVICE.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 11 Aug 2022 11:25:31 +0200
 
 postgresql-common (241) unstable; urgency=medium
 

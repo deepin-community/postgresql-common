@@ -5,6 +5,7 @@ use strict;
 use lib 't';
 use TestLib;
 use File::Temp qw/tempdir/;
+use Time::HiRes qw(usleep);
 
 my $version = $MAJORS[-1];
 
