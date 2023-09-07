@@ -26,49 +26,42 @@
 # newlines.)
 #
 # Recognized tokens:
-# default: use the appropiate defaults for the current distribution and release
-#          (as determined by os-release or lsb_release)
-# debian [release]: use Debian defaults
-# debian-backports [release]: use Debian Backports defaults
-# ubuntu [release]: use Ubuntu defaults
-# pgdg [release]: use defaults for apt.postgresql.org
+# default: use the appropiate defaults for the current distribution
+#          (as determined by os-release)
+# debian: use Debian defaults
+# debian-backports: use Debian Backports defaults
+# ubuntu: use Ubuntu defaults
+# pgdg: use defaults for apt.postgresql.org
 # installed: consider all installed versions supported (determined by
 #            postgresql-server-dev-X packages)
 # X: consider this version supported
 #
 # (C) 2005-2016 Martin Pitt <mpitt@debian.org>
-# (C) 2012-2021 Christoph Berg <myon@debian.org>
+# (C) 2012-2022 Christoph Berg <myon@debian.org>
 
 set -eu
 
-# at build time, use our pgcommon.sh, not the system one (this assumes
-# debian/supported-versions is one directory deeper than ./pgcommon.sh)
-if [ -e "${0%/supported-versions}/../pgcommon.sh" ]; then
-    . "${0%/supported-versions}/../pgcommon.sh"
-else
-    . /usr/share/postgresql-common/pgcommon.sh
-fi
-
-DEFAULT="14"
+DEFAULT="15"
 
 # functions
 
 default() {
-    case "$DISTRO" in
+    . /etc/os-release
+    case "$ID" in
         [uU]buntu)
-            ubuntu "$RELEASE"
+            ubuntu
             ;;
         [dD]ebian)
-            debian "$RELEASE"
+            debian
             ;;
         *)
-            echo "supported-versions: WARNING! Unknown distribution: $DISTRO" >&2
-            if  echo $ID_LIKE | egrep  '(^| )ubuntu($| )' > /dev/null; then
+            echo "supported-versions: WARNING! Unknown distribution ID in /etc/os-release: $ID" >&2
+            if  echo $ID_LIKE | grep -E '(^| )ubuntu($| )' > /dev/null; then
                 echo "ubuntu found in ID_LIKE, treating as Ubuntu" >&2
-                ubuntu "$RELEASE"
-            elif echo $ID_LIKE | egrep  '(^| )debian($| )' > /dev/null; then
+                ubuntu
+            elif echo $ID_LIKE | grep -E '(^| )debian($| )' > /dev/null; then
                 echo "debian found in ID_LIKE, treating as Debian" >&2
-                debian "$RELEASE"
+                debian
             else
                 echo "Please submit this as a bug report to your distribution." >&2
                 /bin/echo -e "$DEFAULT"
@@ -78,56 +71,15 @@ default() {
 }
 
 ubuntu() {
-    case "$1" in
-        12.04) /bin/echo -e "9.1" ;;
-        14.04) /bin/echo -e "9.3" ;;
-        16.04|16.10) /bin/echo -e "9.5" ;;
-        17.04|17.10) /bin/echo -e "9.6" ;;
-        18.04|18.10) /bin/echo -e "10" ;;
-        19.04|19.10) /bin/echo -e "11" ;;
-        20.04|20.10) /bin/echo -e "12" ;;
-        21.04|21.10) /bin/echo -e "13" ;;
-        22.04|22.10) /bin/echo -e "14" ;;
-        *)
-            echo "supported-versions: WARNING: Unknown Ubuntu release: $1" >&2
-            /bin/echo -e "$DEFAULT" ;;
-    esac
+    echo "$DEFAULT"
 }
 
 debian() {
-    case "$1" in
-        5.0*)  /bin/echo -e "8.3" ;; # Lenny
-        6.0*)  /bin/echo -e "8.4" ;; # Squeeze
-        7|7.*) /bin/echo -e "9.1" ;; # Wheezy
-        8|8.*) /bin/echo -e "9.4" ;; # Jessie
-        9|9.*) /bin/echo -e "9.6" ;; # Stretch
-        10|10.*) /bin/echo -e "11" ;; # Buster
-        11|11.*) /bin/echo -e "13" ;; # Bullseye
-        12|12.*) /bin/echo -e "14" ;; # Bookworm
-        testing | unstable)
-            /bin/echo -e "$DEFAULT" ;;
-        *)
-            echo "supported-versions: WARNING: Unknown Debian release: $1" >&2
-            /bin/echo -e "$DEFAULT" ;;
-    esac
+    echo "$DEFAULT"
 }
 
 debian_backports() {
-    case "$1" in
-        5.0*)  /bin/echo -e "8.3" ;; # Lenny
-        6.0*)  /bin/echo -e "8.4\n9.1" ;; # Squeeze
-        7|7.*) /bin/echo -e "9.1\n9.4" ;; # Wheezy
-        8|8.*) /bin/echo -e "9.4\n9.6" ;; # Jessie
-        9|9.*) /bin/echo -e "9.6" ;; # Stretch
-        10|10.*) /bin/echo -e "11" ;; # Buster
-        11|11.*) /bin/echo -e "13" ;; # Bullseye
-        12|12.*) /bin/echo -e "14" ;; # Bookworm
-        testing | unstable)
-            /bin/echo -e "$DEFAULT" ;;
-        *)
-            echo "supported-versions: WARNING: Unknown Debian release: $1" >&2
-            /bin/echo -e "$DEFAULT" ;;
-    esac
+    echo "$DEFAULT"
 }
 
 pgdg() {
@@ -137,6 +89,7 @@ pgdg() {
 	12
 	13
 	14
+	15
 	EOF
 }
 
@@ -166,24 +119,19 @@ echo "$SUPPORTED_VERSIONS" | while read version release; do
         "") ;;
         $COMMENT*) ;;
         default)
-            get_release
             default
             ;;
         debian)
-            get_release
-            debian "${release:-$RELEASE}"
+            debian
             ;;
         debian-backports)
-            get_release
-            debian_backports "${release:-$RELEASE}"
+            debian_backports
             ;;
         ubuntu)
-            get_release
-            ubuntu "${release:-$RELEASE}"
+            ubuntu
             ;;
         pgdg) # apt.postgresql.org
-            get_release
-            pgdg "${release:-$RELEASE}"
+            pgdg
             ;;
         installed)
             installed

@@ -1,8 +1,8 @@
 #!/bin/sh
 
-# script to add apt.postgresql.org to sources.list
+# script to add apt.postgresql.org to sources.list.d
 
-# Copyright (C) 2013-2021 Christoph Berg <myon@debian.org>
+# Copyright (C) 2013-2022 Christoph Berg <myon@debian.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -12,18 +12,26 @@
 # The full text of the GPL is distributed as in
 # /usr/share/common-licenses/GPL-2 on Debian systems.
 
-SOURCESLIST="/etc/apt/sources.list.d/pgdg.list"
-DEB_SRC="#deb-src"
+SOURCESLIST="/etc/apt/sources.list.d/pgdg.sources"
+TYPES="deb"
 COMPONENTS="main"
 PGDG="pgdg"
 
-while getopts "c:f:ipstv:y" opt ; do
+# variables imported from https://git.postgresql.org/gitweb/?p=pgapt.git;a=blob;f=pgapt.conf
+# checked out in $HOME/apt.postgresql.org/; run "make" to update
+PG_BETA_VERSION=""
+PG_DEVEL_VERSION="16"
+PG_REPOSITORY_DISTS="sid bookworm bullseye buster kinetic jammy focal bionic"
+PG_ARCHIVE_DISTS="sid bookworm bullseye buster stretch jessie wheezy squeeze lenny etch kinetic jammy impish hirsute groovy focal eoan disco cosmic bionic zesty xenial wily utopic saucy precise lucid"
+
+while getopts "c:f:h:ipstv:y" opt ; do
     case $opt in
         c) COMPONENTS="main $OPTARG" ;; # make these extra components available
         f) SOURCESLIST=$OPTARG ;; # sources.list filename to write to
+        h) HOST="$OPTARG" ;; # hostname to use in sources.list
         i) INSTALL="yes" ;; # install packages for version given with -v
         p) PURGE="yes" ;; # purge existing postgresql packages
-        s) DEB_SRC="deb-src" ;; # include source repository as well
+        s) TYPES="deb deb-src" ;; # include source repository as well
         t) PGDG="pgdg-testing" ;; # use *-pgdg or *-pgdg-testing
         v) PGVERSION="$OPTARG" ;; # set up sources.list to use this version (useful for beta/devel packages)
         y) ;; # don't ask for confirmation
@@ -72,36 +80,25 @@ EOF
 fi
 
 # errors are non-fatal above
-set -e
+set -eu
 
-# handle -v PGVERSION
-case $PGVERSION in # FIXME: this shouldn't be hard-coded in here
-    # devel version comes from *-pgdg-testing (with lower default apt pinning priority)
-    15) PGDG="pgdg-testing"
-        COMPONENTS="main $PGVERSION"
-        PIN="-t $CODENAME-$PGDG" ;;
-    # beta version just needs a different component
-    #15) COMPONENTS="main $PGVERSION" ;;
-esac
-
-cat <<EOF
-This script will enable the PostgreSQL APT repository on apt.postgresql.org on
-your system. The distribution codename used will be $CODENAME-$PGDG.
-
-EOF
-
-case $CODENAME in
-    # known distributions
-    sid|bullseye|buster|stretch|jessie|wheezy) ;;
-    groovy|focal|eoan|disco|bionic|xenial|trusty) ;;
-    *) # unknown distribution, verify on the web
-	DISTURL="http://apt.postgresql.org/pub/repos/apt/dists/"
+if [ "${HOST:-}" ]; then
+    :
+elif echo "$PG_REPOSITORY_DISTS" | grep -qw "$CODENAME"; then
+    # known distribution on apt.postgresql.org
+    HOST="apt.postgresql.org"
+elif echo "$PG_ARCHIVE_DISTS" | grep -qw "$CODENAME"; then
+    # known distribution on apt.postgresql.org
+    HOST="apt-archive.postgresql.org"
+else # unknown distribution, verify on the web
+    HOST="apt.postgresql.org"
+	DISTURL="https://$HOST/pub/repos/apt/dists/"
 	if [ -x /usr/bin/curl ]; then
-	    DISTHTML=$(curl -s $DISTURL)
+	    DISTHTML=$(curl -s $DISTURL || :)
 	elif [ -x /usr/bin/wget ]; then
-	    DISTHTML=$(wget --quiet -O - $DISTURL)
+	    DISTHTML=$(wget --quiet -O - $DISTURL || :)
 	fi
-	if [ "$DISTHTML" ]; then
+	if [ "${DISTHTML:-}" ]; then
 	    if ! echo "$DISTHTML" | grep -q "$CODENAME-$PGDG"; then
 		cat <<EOF
 Your system is using the distribution codename $CODENAME, but $CODENAME-$PGDG
@@ -112,34 +109,35 @@ We abort the installation here. If you want to use a distribution different
 from your system, you can call this script with an explicit codename, e.g.
 "$0 precise".
 
-Specifically, if you are using a non-LTS Ubuntu release, refer to
-https://wiki.postgresql.org/wiki/Apt/FAQ#I_am_using_a_non-LTS_release_of_Ubuntu
-
 For more information, refer to https://wiki.postgresql.org/wiki/Apt
 or ask on the mailing list for assistance: pgsql-pkg-debian@postgresql.org
 EOF
 		exit 1
 	    fi
 	fi
-	;;
-esac
+fi
 
-if [ -z "$YES" ]; then
+cat <<EOF
+This script will enable the PostgreSQL APT repository on $HOST on
+your system. The distribution codename used will be $CODENAME-$PGDG.
+
+EOF
+
+if [ -z "${YES:-}" ]; then
     echo -n "Press Enter to continue, or Ctrl-C to abort."
     read enter
     echo
 fi
 
-echo "Writing $SOURCESLIST ..."
-cat > $SOURCESLIST <<EOF
-deb http://apt.postgresql.org/pub/repos/apt/ $CODENAME-$PGDG $COMPONENTS
-$DEB_SRC http://apt.postgresql.org/pub/repos/apt/ $CODENAME-$PGDG $COMPONENTS
-EOF
-
-echo "Importing repository signing key ..."
-KEYRING="/etc/apt/trusted.gpg.d/apt.postgresql.org.gpg"
-test -e $KEYRING || touch $KEYRING
-apt-key --keyring $KEYRING add - <<EOF
+# prefer .gpg keyring from postgresql-common
+KEYRING="/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg"
+# otherwise, use the .asc key
+test -e $KEYRING || KEYRING="/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc"
+echo "Using keyring $KEYRING"
+# write .asc key to disk if not yet present
+if ! test -e $KEYRING; then
+    mkdir -p /usr/share/postgresql-common/pgdg
+    cat > $KEYRING <<EOF
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
 mQINBE6XR8IBEACVdDKT2HEH1IyHzXkb4nIWAY7echjRxo7MTcj4vbXAyBKOfjja
@@ -218,6 +216,41 @@ Gtz3cydIohvNO9d90+29h0eGEDYti7j7maHkBKUAwlcPvMg5m3Y=
 =DA1T
 -----END PGP PUBLIC KEY BLOCK-----
 EOF
+fi
+
+# devel version comes from *-pgdg-snapshot (with lower default apt pinning priority)
+if dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_DEVEL_VERSION:-999}"; then
+    PIN="-t $CODENAME-pgdg-snapshot"
+# beta version needs a different component
+elif dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_BETA_VERSION:-999}"; then
+    COMPONENTS="$COMPONENTS $PGVERSION"
+fi
+
+echo "Writing $SOURCESLIST ..."
+cat > $SOURCESLIST <<EOF
+Types: $TYPES
+URIs: https://$HOST/pub/repos/apt
+Suites: $CODENAME-$PGDG
+Components: $COMPONENTS
+Signed-By: $KEYRING
+EOF
+
+# write a separate section for devel without main so we don't include all of snapshot
+if dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_DEVEL_VERSION:-999}"; then
+cat >> $SOURCESLIST <<EOF
+
+Types: $TYPES
+URIs: https://$HOST/pub/repos/apt
+Suites: $CODENAME-pgdg-snapshot
+Components: $PGVERSION
+Signed-By: $KEYRING
+EOF
+fi
+
+if [ "$SOURCESLIST" = "/etc/apt/sources.list.d/pgdg.sources" ]; then
+    # remove pgdg.list when upgrading to pgdg.sources
+    rm -vf /etc/apt/sources.list.d/pgdg.list /etc/apt/trusted.gpg.d/apt.postgresql.org.gpg
+fi
 
 echo
 echo "Running apt-get update ..."
@@ -225,7 +258,7 @@ apt-get update
 
 cat <<EOF
 
-You can now start installing packages from apt.postgresql.org.
+You can now start installing packages from $HOST.
 
 Have a look at https://wiki.postgresql.org/wiki/Apt for more information;
 most notably the FAQ at https://wiki.postgresql.org/wiki/Apt/FAQ
@@ -233,12 +266,12 @@ EOF
 
 # remove/install packages
 export DEBIAN_FRONTEND=noninteractive
-if [ "$PURGE" ]; then
+if [ "${PURGE:-}" ]; then
     echo
     echo "Purging existing PostgreSQL packages ..."
     apt-get -y purge postgresql-client-common
 fi
-if [ "$INSTALL" ]; then
+if [ "${INSTALL:-}" ]; then
     echo
     echo "Installing packages for PostgreSQL $PGVERSION ..."
     case $PGVERSION in

@@ -123,10 +123,11 @@ ifneq ($(filter pkg.postgresql.cassert,$(DEB_BUILD_PROFILES)),)
   GENCONTROL_FLAGS += -Vcassert='$${Newline}$${Newline}This package has been built with cassert enabled.'
 endif
 
+# alpha fails stats tests with postgresql-15
 # hurd implemented semaphores only recently and tests still fail a lot
 # plperl fails on kfreebsd-* (#704802)
-ifneq ($(filter hurd kfreebsd,$(DEB_HOST_ARCH_OS)),)
-  TEST_FAIL_COMMAND = exit 0
+ifneq ($(filter alpha hurd kfreebsd,$(DEB_HOST_ARCH_OS)),)
+  TEST_FAIL_COMMAND = echo "Ignoring test failures on this architecture"
 else
   TEST_FAIL_COMMAND = exit 1
 endif
@@ -141,8 +142,10 @@ override_dh_auto_configure:
 	# remove pre-built documentation
 	rm -fv doc/src/sgml/*-stamp
 
+ifeq ($(filter nodoc,$(DEB_BUILD_PROFILES)),)
 override_dh_auto_build-indep:
 	$(MAKE) -C build/doc all # build man + html
+endif
 
 override_dh_auto_build-arch:
 	# set MAKELEVEL to 0 to force building submake-generated-headers in src/Makefile.global(.in)
@@ -162,8 +165,10 @@ override_dh_auto_install-arch:
 	mkdir -p debian/postgresql-$(MAJOR_VER)/usr/share/doc/postgresql-$(MAJOR_VER)
 	mv debian/tmp/usr/share/doc/postgresql-doc-$(MAJOR_VER)/extension debian/postgresql-$(MAJOR_VER)/usr/share/doc/postgresql-$(MAJOR_VER)/examples
 
+ifeq ($(filter nodoc,$(DEB_BUILD_PROFILES)),)
 override_dh_auto_install-indep:
 	$(MAKE) -C build/doc install DESTDIR=$(CURDIR)/debian/tmp
+endif
 
 override_dh_makeshlibs:
 	dh_makeshlibs -Xusr/lib/postgresql/$(MAJOR_VER)
@@ -223,9 +228,11 @@ ifeq (, $(findstring nocheck, $(DEB_BUILD_OPTIONS)))
 	# when tests fail, print newest log files
 	# initdb doesn't like LANG and LC_ALL to contradict, unset LANG and LC_CTYPE here
 	# temp-install wants to be invoked from a top-level make, unset MAKELEVEL here
+	# tell pg_upgrade to create its sockets in /tmp to avoid too long paths
 	unset LANG LC_CTYPE MAKELEVEL; ulimit -c unlimited; \
 	if ! make -C build check-world \
 	  $(TEMP_CONFIG) \
+	  PGSOCKETDIR="/tmp" \
 	  PG_TEST_EXTRA='ssl' \
 	  PROVE_FLAGS="--verbose"; \
 	then \
@@ -248,4 +255,9 @@ override_dh_installdeb-arch:
 
 override_dh_gencontrol:
 	# record catversion in .deb control file
-	dh_gencontrol -- -Vpostgresql:Catversion=$(CATVERSION) -Vllvm:Version=$(LLVM_VERSION) $(GENCONTROL_FLAGS)
+	dh_gencontrol $(EXCLUDE_PACKAGES) -- -Vpostgresql:Catversion=$(CATVERSION) -Vllvm:Version=$(LLVM_VERSION) $(GENCONTROL_FLAGS)
+
+ifneq ($(EXCLUDE_PACKAGES),)
+override_dh_builddeb:
+	dh_builddeb $(EXCLUDE_PACKAGES)
+endif

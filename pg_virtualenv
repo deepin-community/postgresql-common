@@ -242,6 +242,7 @@ done
 export PGSYSCONFDIR
 export PGHOST="localhost"
 export PGDATABASE="postgres"
+unset PGHOSTADDR PGPORT PGSERVICE # unset variables that might interfere
 case $PG_VERSIONS in
     *\ *) ;; # multiple versions: do not set PGPORT because that breaks --cluster
     *)

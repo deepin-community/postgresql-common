@@ -2,7 +2,7 @@
 
 # retrieve a WAL file from a pg_receivewal archive
 #
-# Copyright (C) 2021 Christoph Berg <myon@debian.org>
+# Copyright (C) 2021-2022 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,9 @@
 #  GNU General Public License for more details.
 
 set -eu
+
+binroot="/usr/lib/postgresql/"
+#redhat# binroot="/usr/pgsql-"
 
 if [ -z "${2:-}" ]; then
     echo "Syntax: $0 /path/to/wal/%f %p" >&2
@@ -33,10 +36,32 @@ fi
 
 if [ -f "$file.gz" ]; then
     gunzip < "$file.gz" > "$path" || exit 129
-elif [ -f "$file.partial" ]; then
-    cp "$file.partial" "$path" || exit 129
+
+elif [ -f "$file.lz4" ]; then
+    unlz4 < "$file.lz4" > "$path" || exit 129
+
 elif [ -f "$file" ]; then
     cp "$file" "$path" || exit 129
+
+elif [ -f "$file.gz.partial" ] || [ -f "$file.lz4.partial" ]; then
+    if [ -s "$file.gz.partial" ]; then
+        gunzip < "$file.gz.partial" > "$path" || exit 129
+    elif [ -s "$file.lz4.partial" ]; then
+        unlz4 < "$file.lz4.partial" > "$path" || exit 129
+    else
+        # .gz.partial starts completely empty, gunzip doesn't like that
+        touch "$path" || exit 129
+    fi
+
+    # expand file to original size
+    version=$(cat PG_VERSION) || exit 129
+    wal_file_size=$(LC_ALL=C "$binroot$version/bin/pg_controldata" . | awk '/^Bytes per WAL segment:/ { print $5 }') || exit 129
+    [ "$wal_file_size" -gt 0 ] || exit 129
+    truncate --size="$wal_file_size" "$path" || exit 129
+
+elif [ -f "$file.partial" ]; then
+    cp "$file.partial" "$path" || exit 129
+
 else
     # file not found, exit silently in order not to spam the server log with errors
     exit 1

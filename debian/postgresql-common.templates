@@ -49,6 +49,6 @@ _Description: PostgreSQL ${version} catalog version changed
  .
    pg_renamecluster ${version} ${cluster} ${cluster}.old
    pg_upgradecluster ${version} ${cluster}.old --rename ${cluster} \
-     -m upgrade --old-bindir=${vartmpdir}/bin
+     -m upgrade -v ${version} --old-bindir=${vartmpdir}/bin
    pg_dropcluster ${version} ${cluster}.old
    rm -rf ${vartmpdir}

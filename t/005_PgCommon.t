@@ -102,6 +102,9 @@ print F <<EOF;
 
 # Commented_Int = 12
 # commented_str='foobar'
+# commented_bool off
+# commented_bool2 off # comment
+# commented_bool3 just a comment
 
 #intval = 1
 Intval = 42
@@ -194,6 +197,9 @@ is_deeply (\%conf, {
 # test set_conf_value()
 PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'commented_int', '24';
 PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'commented_str', 'new foo';
+PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'commented_bool', 'on';
+PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'commented_bool2', 'on';
+PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'commented_bool3', 'on';
 PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'intval', '39';
 PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'cintval', '5';
 PgCommon::set_conf_value '8.4', 'test', 'foo.conf', 'strval', 'Howdy';
@@ -210,6 +216,9 @@ is ($conf, <<EOF, 'set_conf_value');
 
 Commented_Int = 24
 commented_str='new foo'
+commented_bool on
+commented_bool2 on # comment
+# commented_bool3 just a comment
 
 #intval = 1
 Intval = 39
@@ -223,6 +232,7 @@ cemptystr = '' # moo!
 #testpath = '/bin/bad'
 testpath = '/bin/new'
 QuoteStr = 'test ! -f \\'/tmp/%f\\' && echo \\'yes\\''
+commented_bool3 = on
 newval = 'NEW!'
 include_dir = 'conf.d'
 EOF
@@ -241,6 +251,9 @@ is ($conf, <<EOF, 'disable_conf_value');
 
 Commented_Int = 24
 commented_str='new foo'
+commented_bool on
+commented_bool2 on # comment
+# commented_bool3 just a comment
 
 #intval = 1
 #Intval = 39 #ints are out of fashion
@@ -254,6 +267,7 @@ cemptystr = '' # moo!
 #testpath = '/bin/bad'
 #testpath = '/bin/new' #now 2 comments
 QuoteStr = 'test ! -f \\'/tmp/%f\\' && echo \\'yes\\''
+commented_bool3 = on
 newval = 'NEW!'
 include_dir = 'conf.d'
 EOF
@@ -272,6 +286,9 @@ is ($conf, <<EOF, 'replace_conf_value');
 
 Commented_Int = 24
 commented_str='new foo'
+commented_bool on
+commented_bool2 on # comment
+# commented_bool3 just a comment
 
 #intval = 1
 #Intval = 39 #ints are out of fashion
@@ -286,6 +303,7 @@ cemptystr = '' # moo!
 #testpath = '/bin/bad'
 #testpath = '/bin/new' #now 2 comments
 QuoteStr = 'test ! -f \\'/tmp/%f\\' && echo \\'yes\\''
+commented_bool3 = on
 newval = 'NEW!'
 include_dir = 'conf.d'
 EOF

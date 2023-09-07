@@ -125,6 +125,14 @@ EOF
 
     # Reload systemd (we don't restart services on install) (#932360, #950726)
     [ -d /run/systemd/system ] && systemctl --system daemon-reload >/dev/null || :
+
+    # Provide keyring symlink for pgdg systems using the old pgdg.list format
+    pgdg_list="/etc/apt/sources.list.d/pgdg.list"
+    trusted_key="/etc/apt/trusted.gpg.d/apt.postgresql.org.gpg"
+    pgdg_key="/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg"
+    if test -e $pgdg_list && ! test -e $trusted_key && ! grep -q signed-by $pgdg_list; then
+        ln -sv $pgdg_key $trusted_key
+    fi
 fi
 
 if [ "$1" = triggered ]; then

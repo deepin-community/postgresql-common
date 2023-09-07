@@ -16,7 +16,7 @@ pg_updateaptconfig usr/share/postgresql-common
 pg_updatedicts usr/sbin
 pg_upgradecluster usr/bin
 pg_virtualenv usr/bin
-pgdg usr/share/postgresql-common
+pgdg/apt.postgresql.org.* usr/share/postgresql-common/pgdg
 run-upgrade-scripts usr/share/postgresql-common
 server usr/share/postgresql-common
 systemd/system* lib/systemd

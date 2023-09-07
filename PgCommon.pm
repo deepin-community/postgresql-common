@@ -5,7 +5,7 @@ PgCommon - Common functions for the postgresql-common framework
 =head1 COPYRIGHT AND LICENSE
 
  (C) 2008-2009 Martin Pitt <mpitt@debian.org>
- (C) 2012-2021 Christoph Berg <myon@debian.org>
+ (C) 2012-2022 Christoph Berg <myon@debian.org>
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -340,8 +340,8 @@ sub set_conffile_value {
     # of appending
     if (!$found) {
 	for (my $i=0; $i <= $#lines; ++$i) {
-	    if ($lines[$i] =~ /^\s*#\s*($key)(\s*(?:=|\s)\s*)\w+\b((?:\s*#.*)?)/i or
-		$lines[$i] =~ /^\s*#\s*($key)(\s*(?:=|\s)\s*)'[^']*'((?:\s*#.*)?)/i) {
+	    if ($lines[$i] =~ /^\s*#\s*($key)(\s*(?:=|\s)\s*)\w+\b((?:\s*#.*)?)$/i or
+		$lines[$i] =~ /^\s*#\s*($key)(\s*(?:=|\s)\s*)'[^']*'((?:\s*#.*)?)$/i) {
 		$lines[$i] = "$1$2$value$3\n";
 		$found = 1;
 		last;
@@ -961,12 +961,13 @@ sub validate_cluster_owner($) {
 
  Return an array of all available versions (by binaries and postgresql.conf files)
 
- Arguments: binary to scan for (optional, defaults to postgres)
+ Arguments: binary to scan for (optional, defaults to postgres), maximum acceptable version (optional)
 
 =cut
 
 sub get_versions {
     my $program = shift // 'postgres';
+    my $max_version = shift;
     my %versions = ();
 
     # enumerate psql versions from /usr/lib/postgresql/* (or /usr/pgsql-*)
@@ -978,8 +979,10 @@ sub get_versions {
             next if $entry eq '.' || $entry eq '..';
             my $pfx = '';
             #redhat# $pfx = "pgsql-";
-            ($entry) = $entry =~ /^$pfx(\d+\.?\d+)$/; # untaint
-            $versions{$entry} = 1 if $entry and get_program_path ($program, $entry);
+            my $version;
+            ($version) = $entry =~ /^$pfx(\d+\.?\d+)$/; # untaint
+            next if ($max_version and $version > $max_version);
+            $versions{$version} = 1 if $version and get_program_path ($program, $version);
         }
         closedir D;
     }
@@ -991,6 +994,7 @@ sub get_versions {
             next if $v eq '.' || $v eq '..';
             ($v) = $v =~ /^(\d+\.?\d+)$/; # untaint
             next unless ($v);
+            next if ($max_version and $v > $max_version);
 
             if (opendir (C, "$confroot/$v")) {
                 my $c;
@@ -1014,13 +1018,14 @@ sub get_versions {
 
  Return the newest available version
 
- Arguments: binary to scan for (optional)
+ Arguments: binary to scan for (optional), maximum acceptable version (optional)
 
 =cut
 
 sub get_newest_version {
-    my $program = shift // undef;
-    my @versions = get_versions($program);
+    my $program = shift;
+    my $max_version = shift;
+    my @versions = get_versions($program, $max_version);
     return undef unless (@versions);
     return $versions[-1];
 }
@@ -1088,40 +1093,50 @@ sub cluster_exists {
 
 sub next_free_port {
     # create list of already used ports
-    my @ports;
+    my %ports;
     for my $v (get_versions) {
 	for my $c (get_version_clusters $v) {
-	    push @ports, get_cluster_port ($v, $c);
+            $ports{ get_cluster_port ($v, $c) } = 1;
 	}
     }
 
     my $port;
     for ($port = $defaultport; $port < 65536; ++$port) {
-	next if grep { $_ == $port } @ports;
+        # port in use by existing cluster
+        next if (exists $ports{$port});
 
-        # check if port is already in use
-	my ($have_ip4, $res4, $have_ip6, $res6);
-	if (socket (SOCK, PF_INET, SOCK_STREAM, getprotobyname('tcp'))) { # IPv4
+        # IPv4 port in use
+        my ($have_ip4, $have_ip6);
+        if (socket (SOCK, PF_INET, SOCK_STREAM, getprotobyname('tcp'))) {
 	    $have_ip4 = 1;
-	    $res4 = bind (SOCK, sockaddr_in($port, INADDR_ANY));
+            setsockopt(SOCK, Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1) or error "setsockopt: $!";
+            my $res4 = bind (SOCK, sockaddr_in($port, INADDR_ANY)) and listen (SOCK, 0);
+            my $err = $!;
+            close SOCK;
+            next unless ($res4);
 	}
-	$have_ip6 = 0;
-	no strict; # avoid compilation errors with Perl < 5.14
-	if (exists $Socket::{"IN6ADDR_ANY"}) { # IPv6
+
+        # IPv6 port in use
+        if (exists $Socket::{"IN6ADDR_ANY"}) {
 	    if (socket (SOCK, PF_INET6, SOCK_STREAM, getprotobyname('tcp'))) {
 		$have_ip6 = 1;
-		$res6 = bind (SOCK, sockaddr_in6($port, Socket::IN6ADDR_ANY));
+                setsockopt(SOCK, Socket::SOL_SOCKET, Socket::SO_REUSEADDR, 1) or error "setsockopt: $!";
+                my $res6 = bind (SOCK, sockaddr_in6($port, Socket::IN6ADDR_ANY)) and listen (SOCK, 0);
+                my $err = $!;
+                close SOCK;
+                next unless ($res6);
 	    }
 	}
-	use strict;
+
 	unless ($have_ip4 or $have_ip6) {
 	    # require at least one protocol to work (PostgreSQL needs it anyway
 	    # for the stats collector)
             die "could not create socket: $!";
 	}
+
         close SOCK;
 	# return port if it is available on all supported protocols
-	return $port if ($have_ip4 ? $res4 : 1) and ($have_ip6 ? $res6 : 1);
+        return $port;
     }
 
     die "no free port found";
@@ -1303,7 +1318,7 @@ sub get_db_encoding {
     my ($version, $cluster, $db) = @_;
     my $port = get_cluster_port $version, $cluster;
     my $socketdir = get_cluster_socketdir $version, $cluster;
-    my $psql = get_program_path 'psql';
+    my $psql = get_program_path 'psql', $version;
     return undef unless ($port && $socketdir && $psql);
 
     # try to swich to cluster owner
@@ -1340,7 +1355,7 @@ sub get_db_locales {
     my ($version, $cluster, $db) = @_;
     my $port = get_cluster_port $version, $cluster;
     my $socketdir = get_cluster_socketdir $version, $cluster;
-    my $psql = get_program_path 'psql';
+    my $psql = get_program_path 'psql', $version;
     return undef unless ($port && $socketdir && $psql);
     my ($ctype, $collate);
 
@@ -1464,7 +1479,7 @@ sub get_cluster_databases {
     my ($version, $cluster) = @_;
     my $port = get_cluster_port $version, $cluster;
     my $socketdir = get_cluster_socketdir $version, $cluster;
-    my $psql = get_program_path 'psql';
+    my $psql = get_program_path 'psql', $version;
     return undef unless ($port && $socketdir && $psql);
 
     # try to swich to cluster owner

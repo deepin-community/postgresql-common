@@ -29,6 +29,9 @@ if [ "$1" = purge ]; then
 
     # remove file created by pg_updateaptconfig
     rm -f /etc/apt/apt.conf.d/02autoremove-postgresql*
+
+    # remove pgdg key symlink
+    rm -f /etc/apt/trusted.gpg.d/apt.postgresql.org.gpg
 fi
 
 #DEBHELPER#

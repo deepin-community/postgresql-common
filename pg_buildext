@@ -259,8 +259,8 @@ installed_versions() {
         while read prefix suffix; do
             # translate templates to actually installed packages, and extract version numbers
             dpkg-query --showformat '${db:Status-Status} ${Package}\n' --show "$prefix*$suffix" | \
-                grep '^installed' | cut -d ' ' -f 2 | sed -e "s/^$prefix//; s/$suffix\$//" | egrep '^[0-9.]+$'
-            # if suffix is empty, the egrep will filter out noise like '13-dbgsym'
+                grep '^installed' | cut -d ' ' -f 2 | sed -e "s/^$prefix//; s/$suffix\$//" | grep -E '^[0-9.]+$'
+            # if suffix is empty, the grep will filter out noise like '13-dbgsym'
         done | sort -uV
 }
 
@@ -276,13 +276,15 @@ gencontrol() {
 
     perl -e \
         '$/ = ""; # read paragraphs
+        my $newest_pgversion = $ENV{PGVERSIONS} =~ s/.*\s//sr;
         while (<>) {
             chomp;
-            if (/PGVERSION/) {
+            if (/^Package: .*PGVERSION/) {
                 foreach my $version (split /\n/, $ENV{PGVERSIONS}) {
                     push @out, s/PGVERSION/$version/rg;
                 }
             } else {
+                s/PGVERSION/$newest_pgversion/g;
                 push @out, $_;
             }
         }
@@ -293,7 +295,7 @@ gencontrol() {
         cp debian/tests/control.in $tmptestscontrol
         # find words (package names) containing PGVERSION
         REGEXP='[[:alnum:]-]*PGVERSION[[:alnum:]-]*'
-        for pkgpattern in $(egrep -wo "$REGEXP" debian/tests/control.in | sort -u); do
+        for pkgpattern in $(grep -Ewo "$REGEXP" debian/tests/control.in | sort -u); do
             repl=""
             # build an array of replacements separated by ,
             for v in $(versions); do
@@ -338,7 +340,7 @@ case $action in
         gencontrol
         need_update=
         if ! diff -u debian/control $tmpcontrol; then
-            if [ "${PG_UPDATECONTROL:-no}" != "no" ] || head -1 debian/changelog | egrep -q -- '-backports|-pgdg|-pgapt'; then
+            if [ "${PG_UPDATECONTROL:-no}" != "no" ] || head -1 debian/changelog | grep -Eq -- '-backports|-pgdg|-pgapt'; then
                 echo "Notice: Updating debian/control from debian/control.in."
                 need_update=1
             else

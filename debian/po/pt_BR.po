@@ -3,21 +3,22 @@
 # This file is distributed under the same license as the postgresql-common package.
 # André Luís Lopes <andrelop@debian.org>, 2006.
 # Eder L. Marques (frolic) <frolic@debian-ce.org>, 2007, 2008.
+# Paulo Henrique de Lima Santana (phls) <phls@debian.org>, 2022.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: postgresql-common 88+nmu1\n"
+"Project-Id-Version: postgresql-common_243\n"
 "Report-Msgid-Bugs-To: postgresql-common@packages.debian.org\n"
 "POT-Creation-Date: 2016-03-05 11:47+0100\n"
-"PO-Revision-Date: 2008-07-17 11:44-0300\n"
-"Last-Translator: Eder L. Marques (frolic) <frolic@debian-ce.org>\n"
+"PO-Revision-Date: 2022-11-15 18:57-0300\n"
+"Last-Translator: Paulo Henrique de Lima Santana (phls) <phls@debian.org>\n"
 "Language-Team: Brazilian Portuguese <debian-l10n-portuguese@lists.debian."
 "org>\n"
 "Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"pt_BR utf-8\n"
+"X-Generator: Poedit 3.1.1\n"
 
 #. Type: error
 #. Description
@@ -65,7 +66,7 @@ msgid ""
 msgstr ""
 "Os antigos pacotes servidor e cliente não são mais suportados. Após os "
 "clusters existentes terem sido atualizados, os pacotes postgresql-${old} e "
-"postgresql-client-${old} deveriam ser removidos."
+"postgresql-client-${old} devem ser removidos."
 
 #. Type: error
 #. Description
@@ -80,7 +81,7 @@ msgstr ""
 #. Description
 #: ../postgresql-common.templates:2001
 msgid "Enable SSL by default in new PostgreSQL clusters?"
-msgstr ""
+msgstr "Habilitar SSL por padrão em novos clusters PostgreSQL?"
 
 #. Type: boolean
 #. Description
@@ -90,6 +91,10 @@ msgid ""
 "However, if the database is solely accessed using TCP connections on "
 "localhost, SSL can be turned off without introducing security issues."
 msgstr ""
+"O PostgreSQL suporta conexões SSL criptografadas. Isso geralmente é uma "
+"coisa boa. No entanto, se o banco de dados for acessado exclusivamente "
+"usando conexões TCP no localhost, o SSL pode ser desativado sem introduzir "
+"problemas de segurança."
 
 #. Type: boolean
 #. Description
@@ -100,18 +105,22 @@ msgid ""
 "created during package install, or by using the pg_createcluster command. It "
 "does not reconfigure existing clusters."
 msgstr ""
+"As conexões de soquete de domínio UNIX (chamadas de \"local\" em pg_hba."
+"conf) não são afetadas por essa configuração. Essa configuração diz respeito "
+"a novos clusters PostgreSQL criados durante a instalação do pacote ou usando "
+"o comando pg_createcluster. Ele não reconfigura clusters existentes."
 
 #. Type: boolean
 #. Description
 #: ../postgresql-common.templates:2001
 msgid "If unsure, enable SSL."
-msgstr ""
+msgstr "Se não tiver certeza, habilite o SSL."
 
 #. Type: note
 #. Description
 #: ../postgresql-common.templates:3001
 msgid "PostgreSQL ${version} catalog version changed"
-msgstr ""
+msgstr "A versão do catálogo do PostgreSQL ${version} foi alterada"
 
 #. Type: note
 #. Description
@@ -123,6 +132,11 @@ msgid ""
 "not be able to use this cluster until it was upgraded to the new catalog "
 "version."
 msgstr ""
+"O cluster do PostgreSQL ${version} ${cluster} foi criado usando a versão do "
+"catálogo ${db_catversion}, mas o pacote atualmente instalado postgresql-"
+"${version} está usando a versão do catálogo ${new_catversion}. Você não "
+"poderá usar esse cluster até que ele seja atualizado para a nova versão do "
+"catálogo."
 
 #. Type: note
 #. Description
@@ -131,3 +145,5 @@ msgid ""
 "The necessary subset of binaries from the old version was saved in "
 "${vartmpdir}. To upgrade the cluster, execute these commands:"
 msgstr ""
+"O subconjunto necessário de binários da versão antiga foi salvo em "
+"${vartmpdir}. Para fazer a atualização do cluster, execute estes comandos:"

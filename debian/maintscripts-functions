@@ -3,7 +3,7 @@
 
 # arguments: version master package [package]
 _link_manpages() {
-    MANS=$(unset GREP_OPTIONS; dpkg -L $3 $4 $5 2>/dev/null|egrep '/man/.*\.[1-9](\.gz)?$' | grep -v "$2") || true
+    MANS=$(unset GREP_OPTIONS; dpkg -L $3 $4 $5 2>/dev/null | grep -E '/man/.*\.[1-9](\.gz)?$' | grep -v "$2") || true
     [ -n "$MANS" ] || return 0
 
     SLAVES=$(for i in $MANS; do TARGET=$(echo $i | sed "s/postgresql\/$1\///"); echo -n " --slave $TARGET $(basename $i) $i"; done)
@@ -227,7 +227,7 @@ postinst_check_catversion()
 	cat <<-EOF
 	Cluster $MAJOR_VER $cluster needs upgrading due to catalog version change:
 	  pg_renamecluster ${MAJOR_VER} ${cluster} ${cluster}.old
-	  pg_upgradecluster ${MAJOR_VER} ${cluster}.old --rename ${cluster} -m upgrade --old-bindir=${VARTMPDIR}/bin
+	  pg_upgradecluster ${MAJOR_VER} ${cluster}.old --rename ${cluster} -m upgrade -v ${MAJOR_VER} --old-bindir=${VARTMPDIR}/bin
 	  pg_dropcluster ${MAJOR_VER} ${cluster}.old
 	  rm -rf ${VARTMPDIR}
 	EOF

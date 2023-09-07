@@ -172,7 +172,7 @@ B<pg_conftool> [I<options>] [I<version> I<cluster>] [I<configfile>] B<command>
 
 =head1 DESCRIPTION
 
-B<pg_conftool> allows to show and set parameters in PostgreSQL configuration
+B<pg_conftool> allows showing and setting parameters in PostgreSQL configuration
 files.
 
 If I<version> I<cluster> is omitted, it defaults to the default cluster (see

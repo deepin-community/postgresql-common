@@ -29,8 +29,12 @@ the package is built for B<apt.postgresql.org>.
 
 As the set of binary packages depends on the target PostgreSQL versions,
 C<debian/control> is generated from a template in C<debian/control.in> when
-B<pg_buildext updatecontrol> is run. Occurrences of B<PGVERSION> in package
-sections are replaced by the target PostgreSQL version. Include
+B<pg_buildext updatecontrol> is run.
+Package sections that contain B<PGVERSION> in the package name are replaced by
+a list of sections, filling in the supported PostgreSQL versions.
+Package sections that contain B<PGVERSION> outside the package name have the
+newest supported PostgreSQL version filled in (useful for meta packages).
+Include
 C</usr/share/postgresql-common/pgxs_debian_control.mk> in C<debian/rules> to
 run a check at build time if updating debian/control is required.
 

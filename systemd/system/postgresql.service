@@ -1,6 +1,9 @@
-# systemd service for managing all PostgreSQL clusters on the system. This
-# service is actually a systemd target, but we are using a service since
-# targets cannot be reloaded.
+# postgresql.service is the meta unit for managing all PostgreSQL clusters on
+# the system at once. Conceptually, this unit is more like a systemd target,
+# but we are using a service since targets cannot be reloaded.
+#
+# The unit actually managing PostgreSQL clusters is postgresql@.service,
+# instantiated as postgresql@15-main.service for individual clusters.
 
 [Unit]
 Description=PostgreSQL RDBMS
