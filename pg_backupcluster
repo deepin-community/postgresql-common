@@ -2,7 +2,7 @@
 
 # simple pg_basebackup front-end
 #
-# Copyright (C) 2021 Christoph Berg <myon@debian.org>
+# Copyright (C) 2021-2023 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -43,15 +43,18 @@ Actions:
   archivecleanup         Remove obsolete WAL files from archive
   list                   Show dumps, basebackups, and WAL
 Options:
+  -c --checkpoint <spread|fast>  Passed to pg_basebackup
   -k --keep-on-error     Keep faulty backup directory on error
   -v --verbose           Verbose output
 ";
 }
 
+my $checkpoint = 'spread';
 my $keep_on_error;
 my $verbose;
 
 exit 1 unless GetOptions (
+    'c|checkpoint=s' => sub { $checkpoint = $_[1] =~ /^f/ ? "fast" : "spread" },
     'k|keep-on-error' => \$keep_on_error,
     'v|verbose' => \$verbose,
 );
@@ -129,6 +132,7 @@ sub create_basebackup($) {
         "--cluster", "$version/$cluster",
         "--verbose",
         (-t 2 ? "--progress" : ()),
+        "--checkpoint=$checkpoint",
         "--format", "tar", "--gzip",
         ($version < 10 ? "--xlog" : ()),
         "-D", $backupdir;
@@ -138,13 +142,21 @@ sub create_dumpall($) {
     my $backupdir = shift;
     mkdir($backupdir, 0750) or error "mkdir $backupdir: $!";
 
-    my $clusterquery = "SELECT concat(
-  format('--encoding %s --lc-collate %s --lc-ctype %s', pg_catalog.pg_encoding_to_char(encoding), datcollate, datctype),
-  CASE WHEN current_setting('data_checksums')::boolean THEN ' -- --data-checksums' END)
+    my $pg16 = $version >= 16 ? "|| ' --icu-rules ' || daticurules" : "";
+    my $pg15 = $version >= 15 ? "CASE datlocprovider::text
+        WHEN 'c' THEN '--locale-provider libc'
+        WHEN 'i' THEN '--locale-provider icu --icu-locale ' || daticulocale $pg16
+      END," : "";
+    my $clusterquery = "SELECT
+  '--encoding', pg_catalog.pg_encoding_to_char(encoding),
+  '--lc-collate', datcollate,
+  '--lc-ctype', datctype,
+  $pg15
+  CASE WHEN current_setting('data_checksums')::boolean THEN '-- --data-checksums' END
 FROM pg_database WHERE datname = 'template0'";
     system_or_error "psql",
         "--cluster", "$version/$cluster",
-        "-XAtc", $clusterquery,
+        "-XAtF", " ", "-c", $clusterquery,
         "-o", "$backupdir/createcluster.opts";
 
     system_or_error "pg_dumpall",
@@ -152,9 +164,15 @@ FROM pg_database WHERE datname = 'template0'";
         "--globals-only",
         "--file", "$backupdir/globals.sql";
 
+    $pg16 = $version >= 16 ? "|| ' ICU_RULES ' || quote_literal(coalesce(daticurules, ''))" : "";
+    $pg15 = $version >= 15 ? "|| CASE datlocprovider::text
+        WHEN 'c' THEN 'LOCALE_PROVIDER libc'
+        WHEN 'i' THEN 'LOCALE_PROVIDER icu ICU_LOCALE ' || quote_literal(daticulocale) $pg16
+      END" : "";
     my $dbquery = "/* database creation */
 SELECT
-  format('CREATE DATABASE %I WITH OWNER = %I TEMPLATE = template0 ENCODING = %L LC_COLLATE %L LC_CTYPE %L;', datname, rolname, pg_encoding_to_char(encoding), datcollate, datctype) AS command
+  format('CREATE DATABASE %I WITH OWNER %I TEMPLATE template0 ENCODING %L LC_COLLATE %L LC_CTYPE %L',
+    datname, rolname, pg_encoding_to_char(encoding), datcollate, datctype) $pg15 || ';' AS command
 FROM pg_database
 LEFT JOIN pg_roles r ON r.oid = datdba
 WHERE datallowconn AND datname NOT IN ('postgres', 'template1')
@@ -502,6 +520,10 @@ Show dumps, basebackups, and WAL, with size.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-c --checkpoint=spread|fast>
+
+Passed to B<pg_basebackup>. Default is B<spread>.
 
 =item B<-k --keep-on-error>
 

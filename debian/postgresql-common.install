@@ -15,11 +15,10 @@ pg_restorecluster usr/bin
 pg_updateaptconfig usr/share/postgresql-common
 pg_updatedicts usr/sbin
 pg_upgradecluster usr/bin
+pg_upgradecluster.d etc/postgresql-common
 pg_virtualenv usr/bin
 pgdg/apt.postgresql.org.* usr/share/postgresql-common/pgdg
-run-upgrade-scripts usr/share/postgresql-common
 server usr/share/postgresql-common
 systemd/system* lib/systemd
 t/* usr/share/postgresql-common/t
 testsuite usr/share/postgresql-common
-upgrade-scripts/* usr/share/postgresql-common/upgrade-scripts

@@ -99,10 +99,6 @@ EOF
         fi
     fi
 
-    if [ "$2" ]; then
-        /usr/share/postgresql-common/run-upgrade-scripts "$2" || true
-    fi
-
     /usr/share/postgresql-common/pg_checksystem || true
 
     # Create createcluster.conf from debconf
@@ -118,6 +114,12 @@ EOF
     # Drop auto-generated conffile dropped in 215/229 + backups
     rm -f /etc/apt/apt.conf.d/01autoremove-postgresql*
 
+    # Merge postmaster.1.gz (removed in PG16) alternatives with psql.1.gz (248)
+    if update-alternatives --list postmaster.1.gz >/dev/null 2>&1; then
+        . /usr/share/postgresql-common/maintscripts-functions
+        relink_postmaster_manpages
+    fi
+
     # Create tsearch dictionaries on first install
     if [ -z "$2" ]; then
         pg_updatedicts
@@ -126,7 +128,7 @@ EOF
     # Reload systemd (we don't restart services on install) (#932360, #950726)
     [ -d /run/systemd/system ] && systemctl --system daemon-reload >/dev/null || :
 
-    # Provide keyring symlink for pgdg systems using the old pgdg.list format
+    # Provide keyring symlink for pgdg systems using the old pgdg.list format (246)
     pgdg_list="/etc/apt/sources.list.d/pgdg.list"
     trusted_key="/etc/apt/trusted.gpg.d/apt.postgresql.org.gpg"
     pgdg_key="/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg"

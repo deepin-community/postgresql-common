@@ -2,7 +2,7 @@
 
 # script to add apt.postgresql.org to sources.list.d
 
-# Copyright (C) 2013-2022 Christoph Berg <myon@debian.org>
+# Copyright (C) 2013-2023 Christoph Berg <myon@debian.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,10 +19,10 @@ PGDG="pgdg"
 
 # variables imported from https://git.postgresql.org/gitweb/?p=pgapt.git;a=blob;f=pgapt.conf
 # checked out in $HOME/apt.postgresql.org/; run "make" to update
-PG_BETA_VERSION=""
-PG_DEVEL_VERSION="16"
-PG_REPOSITORY_DISTS="sid bookworm bullseye buster kinetic jammy focal bionic"
-PG_ARCHIVE_DISTS="sid bookworm bullseye buster stretch jessie wheezy squeeze lenny etch kinetic jammy impish hirsute groovy focal eoan disco cosmic bionic zesty xenial wily utopic saucy precise lucid"
+PG_BETA_VERSION="16"
+PG_DEVEL_VERSION="17"
+PG_REPOSITORY_DISTS="sid trixie bookworm bullseye buster mantic lunar kinetic jammy focal bionic"
+PG_ARCHIVE_DISTS="sid trixie bookworm bullseye buster stretch jessie wheezy squeeze lenny etch mantic lunar kinetic jammy impish hirsute groovy focal eoan disco cosmic bionic zesty xenial wily utopic saucy precise lucid"
 
 while getopts "c:f:h:ipstv:y" opt ; do
     case $opt in
@@ -129,6 +129,8 @@ if [ -z "${YES:-}" ]; then
     echo
 fi
 
+# keyring needs to be readable for apt
+umask 022
 # prefer .gpg keyring from postgresql-common
 KEYRING="/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg"
 # otherwise, use the .asc key
@@ -218,13 +220,23 @@ Gtz3cydIohvNO9d90+29h0eGEDYti7j7maHkBKUAwlcPvMg5m3Y=
 EOF
 fi
 
-# devel version comes from *-pgdg-snapshot (with lower default apt pinning priority)
-if dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_DEVEL_VERSION:-999}"; then
-    PIN="-t $CODENAME-pgdg-snapshot"
-# beta version needs a different component
-elif dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_BETA_VERSION:-999}"; then
-    COMPONENTS="$COMPONENTS $PGVERSION"
-fi
+for version in ${PGVERSION:-}; do
+    # devel version comes from *-pgdg-snapshot (with lower default apt pinning priority)
+    if dpkg --compare-versions $version ge "${PG_DEVEL_VERSION:-999}"; then
+        COMPONENTS="$COMPONENTS $version" # devel component is likely empty, but add it to be sure
+        DEVEL_COMPONENT="${DEVEL_COMPONENT:-} $version"
+        PIN="-t $CODENAME-pgdg-snapshot"
+    # beta version needs a different component
+    elif dpkg --compare-versions $version ge "${PG_BETA_VERSION:-999}"; then
+        COMPONENTS="$COMPONENTS $version"
+    fi
+
+    # select packages to install
+    PACKAGES="${PACKAGES:-} postgresql-$version postgresql-server-dev-$version"
+    case $version in
+        8*|9*) PACKAGES="$PACKAGES postgresql-contrib-$version" ;;
+    esac
+done
 
 echo "Writing $SOURCESLIST ..."
 cat > $SOURCESLIST <<EOF
@@ -236,13 +248,13 @@ Signed-By: $KEYRING
 EOF
 
 # write a separate section for devel without main so we don't include all of snapshot
-if dpkg --compare-versions "${PGVERSION:-0}" ge "${PG_DEVEL_VERSION:-999}"; then
+if [ "${DEVEL_COMPONENT:-}" ]; then
 cat >> $SOURCESLIST <<EOF
 
 Types: $TYPES
 URIs: https://$HOST/pub/repos/apt
 Suites: $CODENAME-pgdg-snapshot
-Components: $PGVERSION
+Components: ${DEVEL_COMPONENT# }
 Signed-By: $KEYRING
 EOF
 fi
@@ -274,10 +286,6 @@ fi
 if [ "${INSTALL:-}" ]; then
     echo
     echo "Installing packages for PostgreSQL $PGVERSION ..."
-    case $PGVERSION in
-        8*|9*) CONTRIB="postgresql-contrib-$PGVERSION" ;;
-    esac
     apt-get -y -o DPkg::Options::=--force-confnew \
-        install ${PIN:-} \
-        postgresql-$PGVERSION ${CONTRIB:-} postgresql-server-dev-$PGVERSION
+        install ${PIN:-} $PACKAGES
 fi

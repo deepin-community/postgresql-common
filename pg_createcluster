@@ -22,7 +22,7 @@ use PgCommon;
 use Getopt::Long;
 use POSIX qw/lchown setlocale LC_ALL LC_CTYPE/;
 
-$ENV{'PATH'} = '/bin:/usr/bin'; # untaint
+$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin'; # untaint
 
 my @postgres_user = getpwnam 'postgres';
 my %defaultconf;

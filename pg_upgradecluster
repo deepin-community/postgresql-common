@@ -4,7 +4,7 @@
 #
 # (C) 2005-2009 Martin Pitt <mpitt@debian.org>
 # (C) 2013 Peter Eisentraut <petere@debian.org>
-# (C) 2013-2022 Christoph Berg <myon@debian.org>
+# (C) 2013-2023 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,9 @@ delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
 my ($version, $newversion, $cluster, $newcluster);
 my (%info, %newinfo);
 my ($encoding, $old_lc_ctype, $old_lc_collate); # old cluster encoding
+my ($old_locale_provider, $old_icu_locale, $old_icu_rules);
 my $maintenance_db = 'template1';
+my $keep_on_error = 0;
 
 # do not trip over cwd not being accessible to postgres superuser
 chdir '/';
@@ -198,6 +200,12 @@ sub adapt_conffiles {
 
     if ($newversion >= '16') {
         $deprecate->(\%c, 'promote_trigger_file', 'does not exist anymore, use pg_promote() instead');
+        $deprecate->(\%c, 'vacuum_defer_cleanup_age', 'does not exist anymore');
+        $deprecate->(\%c, 'force_parallel_mode', 'does not exist anymore');
+    }
+
+    if ($newversion >= '17') {
+        $deprecate->(\%c, 'db_user_namespace', 'does not exist anymore');
     }
 }
 
@@ -301,7 +309,7 @@ sub get_encoding {
     if ($version <= '8.3') {
 	($old_lc_ctype, $old_lc_collate) = get_cluster_locales $version, $cluster;
     } else {
-	($old_lc_ctype, $old_lc_collate) = get_db_locales $version, $cluster, $maintenance_db;
+	($old_lc_ctype, $old_lc_collate, $old_locale_provider, $old_icu_locale, $old_icu_rules) = get_db_locales $version, $cluster, $maintenance_db;
     }
     unless ($encoding && $old_lc_ctype && $old_lc_collate) {
 	error 'could not get cluster locales';
@@ -320,6 +328,34 @@ sub run_parts {
     }
 }
 
+sub run_upgrade_scripts($) {
+    my $phase = shift;
+
+    print "Running $phase phase upgrade hook scripts ...\n";
+    if (!fork) {
+        change_ugid $info{'owneruid'}, $info{'ownergid'};
+
+        if ($PgCommon::rpm) {
+            run_parts ("$PgCommon::common_confdir/pg_upgradecluster.d",
+                $version, $newcluster, $newversion, $phase);
+            exit;
+        }
+
+        my @argv = ('run-parts', '--lsbsysinit', '-a', $version, '-a', $newcluster,
+            '-a', $newversion, '-a', $phase,
+            "$PgCommon::common_confdir/pg_upgradecluster.d");
+        error "$PgCommon::common_confdir/pg_upgradecluster.d script failed" if system @argv;
+        exit;
+    }
+    wait;
+    if ($? > 0) {
+        unless ($keep_on_error) {
+            print STDERR "Error during running upgrade hooks, removing new cluster\n";
+            system 'pg_dropcluster', '--stop', $newversion, $newcluster;
+        }
+        exit 1;
+    }
+}
 
 #
 # Execution starts here
@@ -356,6 +392,7 @@ GetOptions ('v|version=s' => \$newversion,
             'old-bindir=s' => \$old_bindir,
             'maintenance-db=s' => \$maintenance_db,
             'start!' => \$start,
+            'keep-on-error' => \$keep_on_error,
     ) or exit 1;
 
 if ($method eq 'dump') {
@@ -451,7 +488,6 @@ my $upgrade_port = next_free_port;
 my @argv = ('pg_createcluster', '-u', $info{'owneruid'}, '-g', $info{'ownergid'},
     '--socketdir', $info{'socketdir'}, '--port', $upgrade_port, '--no-status',
     $newversion, $newcluster);
-
 push @argv, ('--datadir', $datadir) if $datadir;
 push @argv, ('--logfile', $logfile) if $logfile;
 push @argv, ('--encoding', $encoding) unless $locale or $lc_ctype;
@@ -464,8 +500,15 @@ push @argv, ('--lc-messages', $lc_messages) if $lc_messages;
 push @argv, ('--lc-monetary', $lc_monetary) if $lc_monetary;
 push @argv, ('--lc-numeric', $lc_numeric) if $lc_numeric;
 push @argv, ('--lc-time', $lc_time) if $lc_time;
+push @argv, ('--');
+push @argv, ('--locale-provider', $old_locale_provider) if $old_locale_provider;
+push @argv, ('--icu-locale', $old_icu_locale) if $old_icu_locale;
+push @argv, ('--icu-rules', $old_icu_rules) if $old_icu_rules;
+push @argv, ('--data-checksums') if $oldcontrol->{'Data page checksum version'}; # 0 = off
+push @argv, ('--encryption-key-command', $info{config}->{encryption_key_command}) if $info{config}->{encryption_key_command}; # PostgreSQL TDE
+
+# call pg_createcluster
 delete $ENV{'LC_ALL'};
-push @argv, ('--', '--data-checksums') if $oldcontrol->{'Data page checksum version'}; # 0 = off
 error "Could not create target cluster" if system @argv;
 print "\n";
 
@@ -489,30 +532,8 @@ my $upgrade_scripts = (-d "$PgCommon::common_confdir/pg_upgradecluster.d" &&
          `run-parts --test $PgCommon::common_confdir/pg_upgradecluster.d`));
 
 # Run upgrade scripts in init phase
-if ($upgrade_scripts) {
-    print "Running <init> phase upgrade hook scripts...\n";
-    if (!fork) {
-	change_ugid $info{'owneruid'}, $info{'ownergid'};
-
-        if ($PgCommon::rpm) {
-            run_parts ("$PgCommon::common_confdir/pg_upgradecluster.d",
-                $version, $newcluster, $newversion, 'init');
-            exit;
-        }
-
-	@argv = ('run-parts', '--lsbsysinit', '-a', $version, '-a', $newcluster,
-	    '-a', $newversion, '-a', 'init',
-	    "$PgCommon::common_confdir/pg_upgradecluster.d");
-	error "$PgCommon::common_confdir/pg_upgradecluster.d script failed" if system @argv;
-        exit 0;
-    }
-    wait;
-    if ($? > 0) {
-        print STDERR "Error during running upgrade hooks, removing new cluster\n";
-        system 'pg_dropcluster', '--stop', $newversion, $newcluster;
-        exit 1;
-    }
-}
+run_upgrade_scripts('init') if ($upgrade_scripts);
+print "\n";
 
 # dump cluster; drop to cluster owner privileges
 
@@ -625,11 +646,6 @@ if (!fork) {
 	    close SINK;
 
 	    # clean up
-	    print 'Analyzing database ', $db, "...\n";
-	    (system $psql, '-h', $newsocket, '-p', $newinfo{'port'}, '-qX',
-		'-d', $db, '-c', 'ANALYZE') == 0 or
-		error 'Could not ANALYZE database';
-
 	    unless ($databases{$db}) {
 		print "Disabling access to database $db again\n";
 		(system $psql, '-h', $oldsocket, '-p', $info{'port'}, '-qX',
@@ -670,8 +686,7 @@ if (!fork) {
 	push @argv, "--clone" if $clone;
 	push @argv, '-j', $jobs if $jobs;
 
-	# Make a directory for pg_upgrade to store its reports and log
-	# files.  It will not be removed.
+        # Make a directory for pg_upgrade to store its reports and log files.
 	my $logdir = tempdir("/var/log/postgresql/pg_upgradecluster-$version-$newversion-$newcluster.XXXX");
 	chdir $logdir;
 
@@ -683,8 +698,15 @@ if (!fork) {
 	# pg_ctlcluster, but not by pg_upgrade).
 	unlink "/var/run/postgresql/$version-$cluster.pid";
 
-	$status == 0 or error "pg_upgrade run failed. Logfiles are in $logdir";
-        print "pg_upgrade output scripts are in $logdir\n";
+	# Move output files to our log directory
+	if (-d (my $outdir =  "$newinfo{pgdata}/pg_upgrade_output.d")) {
+	    system mv => $outdir, $logdir
+		and error "Could not move $outdir to $logdir";
+        }
+        rmdir $logdir; # remove it if it's empty
+        print "pg_upgradecluster: pg_upgrade output scripts are in $logdir\n" if (-d $logdir);
+
+        exit 1 if ($status != 0);
     }
 
     exit 0;
@@ -693,15 +715,20 @@ if (!fork) {
 wait;
 
 if ($?) {
-    print STDERR "Error during cluster dumping, removing new cluster\n";
-    system 'pg_dropcluster', '--stop', $newversion, $newcluster;
+    print "\n";
+
+    unless ($keep_on_error) {
+        print STDERR "Error during cluster dumping, removing new cluster\n";
+        system 'pg_dropcluster', '--stop', $newversion, $newcluster;
+    }
 
     # Restart old cluster to allow connections again (two steps because we started without systemd)
-    if (system 'pg_ctlcluster', $version, $cluster, 'stop') {
-        error 'could not stop old cluster, please do that manually';
-    }
-    if (system 'pg_ctlcluster', $version, $cluster, 'start') {
-        error 'could not start old cluster, please do that manually';
+    system 'pg_ctlcluster', $version, $cluster, 'stop'; # ignore errors, it might be down anyway
+    if ($info{running}) {
+        print "Starting old cluster again ...\n";
+        if (system 'pg_ctlcluster', $version, $cluster, 'start') {
+            error 'could not start old cluster, please do that manually';
+        }
     }
     exit 1;
 }
@@ -751,26 +778,7 @@ if ($start) {
 }
 
 # Run upgrade scripts in finish phase
-if ($upgrade_scripts) {
-    print "Running <finish> phase upgrade hook scripts...\n";
-    if (!fork) {
-	change_ugid $info{'owneruid'}, $info{'ownergid'};
-
-        if ($PgCommon::rpm) {
-            run_parts ("$PgCommon::common_confdir/pg_upgradecluster.d",
-                $version, $newcluster, $newversion, 'finish');
-            exit;
-        }
-
-	@argv = ('run-parts', '--lsbsysinit', '-a', $version, '-a', $newcluster,
-	    '-a', $newversion, '-a', 'finish',
-	    "$PgCommon::common_confdir/pg_upgradecluster.d");
-	error "$PgCommon::common_confdir/pg_upgradecluster.d script failed" if system @argv;
-        exit 0;
-    }
-    wait;
-    exit $? >> 8 if ($?);
-}
+run_upgrade_scripts('finish') if ($upgrade_scripts);
 
 print "\nSuccess. Please check that the upgraded cluster works. If it does,
 you can remove the old cluster with
@@ -896,6 +904,11 @@ Database to connect to for maintenance queries.  The default is B<template1>.
 
 Start the new database cluster after upgrading. The default is to start the new
 cluster if the old cluster was running, or if upgrade hook scripts are present.
+
+=item B<--keep-on-error>
+
+If upgrading fails, the newly created cluster is removed. This option disables
+that.
 
 =back
 
