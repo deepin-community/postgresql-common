@@ -1,6 +1,0 @@
-*debhelper*
-files
-*.log
-postgresql*/
-*.substvars
-tmp/

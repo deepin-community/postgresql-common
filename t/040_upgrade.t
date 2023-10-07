@@ -15,7 +15,7 @@ use lib 't';
 use TestLib;
 use PgCommon;
 
-use Test::More tests => (@MAJORS == 1) ? 1 : 121 * 3;
+use Test::More tests => (@MAJORS == 1) ? 1 : 123 * 3;
 
 if (@MAJORS == 1) {
     pass 'only one major version installed, skipping upgrade tests';
@@ -179,6 +179,10 @@ is_program_out 'nobody', 'psql -tAc "SELECT * FROM phone ORDER BY name" test', 0
     $$select_old, 'SELECT output is the same in original and upgraded test';
 is_program_out 'nobody', 'psql -tAc "SELECT * FROM nums" testro', 0,
     "1\n", 'SELECT output is the same in original and upgraded testro';
+
+# Check that table was analyzed
+like_program_out 'nobody', "psql -XAtc \"select analyze_count from pg_stat_user_tables where relname = 'phone'\" test", 0, qr/^[1-3]$/,
+    'check analyze count'; # --analyze-in-stages does 3 passes
 
 # Check sequence value
 is_program_out 'nobody', 'psql -Atc "SELECT nextval(\'odd10\')" test', 0, "5\n",

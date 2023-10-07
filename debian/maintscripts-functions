@@ -1,56 +1,60 @@
+# vim:ft=sh:
 # This file contains common functionality for all postgresql server
 # package maintainer scripts.
+# Most functions accept the version number as first argument and as second
+# optional argument a spelling variant of the version number used in package
+# names that can be used for flavored package builds.
 
-# arguments: version master package [package]
+# arguments: version master package [package package]
 _link_manpages() {
-    MANS=$(unset GREP_OPTIONS; dpkg -L $3 $4 $5 2>/dev/null | grep -E '/man/.*\.[1-9](\.gz)?$' | grep -v "$2") || true
+    VERSION="$1"
+    NAME="$2"
+    MANS=$(unset GREP_OPTIONS; dpkg -L $3 $4 $5 2>/dev/null | grep -E '/man/.*\.[1-9](\.gz)?$' | grep -v "$NAME") || true
     [ -n "$MANS" ] || return 0
 
-    SLAVES=$(for i in $MANS; do TARGET=$(echo $i | sed "s/postgresql\/$1\///"); echo -n " --slave $TARGET $(basename $i) $i"; done)
-    # pg_basebackup once moved from server to client; upgrades are still
-    # affected by this for quite a while, so remove this alternative before
-    # reinstalling it to avoid failure. This needs to be kept until we stop
-    # supporting upgrades from -9.1.
-    if [ "$2" = "psql.1.gz" ]; then
-	OUT=$(LC_ALL=C update-alternatives --display postmaster.1.gz 2> /dev/null) || true
-	if [ "${OUT#*auto mode}" != "$OUT" ] && [ "${OUT#*pg_basebackup.1.gz}" != "$OUT" ]; then
-            echo "Adjusting postmaster.1.gz alternatives for pg_basebackup move..."
-	    update-alternatives --remove postmaster.1.gz /usr/share/postgresql/9.1/man/man1/postmaster.1.gz
-	fi
-    # similarly, if we have both 9.1 and e. g. 9.3 installed, pg_basebackup.1
-    # will already be in the psql.1.gz alternative group; if we upgrade 9.1, we
-    # then must not try to put it into postmaster.1.gz again, as that will
-    # fail
-    elif [ "$2" = "postmaster.1.gz" ] && [ "$1" = "9.1" ]; then
-	if update-alternatives --display psql.1.gz 2>/dev/null | grep -q pg_basebackup; then
-	    #echo "Skipping postmaster.1.gz alternatives as pg_basebackup.1 is already in psql.1.gz group"
-	    return
-	fi
-    fi
+    SLAVES=$(for i in $MANS; do TARGET=$(echo $i | sed "s/postgresql\/$VERSION\///"); echo -n " --slave $TARGET $(basename $i) $i"; done)
 
     # user might have removed the directories, allow u-a to succeed
     mkdir -p /usr/share/man/man1 /usr/share/man/man3 /usr/share/man/man7
-    section=$(echo "$2" | sed -e 's/.*\.\(.*\)\..*/man\1/')
-    case $1 in
-        [89]*) priority=$(echo "$1" | tr -cd 0-9) ;;
-        *) priority="${1}0" ;;
+    section=$(echo "$NAME" | sed -e 's/.*\.\(.*\)\..*/man\1/')
+    case $VERSION in
+        [89]*) priority=$(echo "$VERSION" | tr -cd 0-9) ;;
+        *) priority="${VERSION}0" ;;
     esac
-    update-alternatives --install /usr/share/man/$section/$2 \
-	$2 /usr/share/postgresql/$1/man/$section/$2 \
+    update-alternatives --install /usr/share/man/$section/$NAME \
+	$NAME /usr/share/postgresql/$VERSION/man/$section/$NAME \
 	$priority $SLAVES
+}
+
+# Merge postmaster.1.gz (removed in PG16) alternatives with psql.1.gz (248)
+relink_postmaster_manpages ()
+{
+    update-alternatives --list postmaster.1.gz >/dev/null 2>&1 || return 0
+
+    echo "Merging postmaster.1.gz alternatives into psql.1.gz link group ..."
+    update-alternatives --remove-all postmaster.1.gz
+    for dir in /usr/lib/postgresql/*; do
+        if test -x $dir/bin/psql; then
+            v=${dir#/usr/lib/postgresql/}
+            _link_manpages $v psql.1.gz postgresql-client-$v postgresql-$v postgresql-contrib-$v
+        fi
+    done
 }
 
 # arguments: version master
 _unlink_manpages() {
+    VERSION="$1"
+    NAME="$2"
     # user might have removed the directories, allow u-a to succeed
     mkdir -p /usr/share/man/man1 /usr/share/man/man3 /usr/share/man/man7
-    section=$(echo "$2" | sed -e 's/.*\.\(.*\)\..*/man\1/')
-    update-alternatives --remove $2 /usr/share/postgresql/$1/man/$section/$2
+    section=$(echo "$NAME" | sed -e 's/.*\.\(.*\)\..*/man\1/')
+    update-alternatives --remove $NAME /usr/share/postgresql/$VERSION/man/$section/$NAME
 }
 
 _remove_tsearch() {
-   if [ -e /usr/share/postgresql/$1/tsearch_data ]; then
-       find /usr/share/postgresql/$1/tsearch_data -type l \( -name '*.dict' -o -name '*.affix' \) -exec rm '{}' \;
+    VERSION="$1"
+   if [ -e /usr/share/postgresql/$VERSION/tsearch_data ]; then
+       find /usr/share/postgresql/$VERSION/tsearch_data -type l \( -name '*.dict' -o -name '*.affix' \) -exec rm '{}' \;
    fi
 }
 
@@ -75,8 +79,9 @@ set_system_locale() {
 # arguments: <major version> <most recently configured package version>
 configure_version() {
     VERSION="$1"
+    PKG_VER="${3:-$1}"
 
-    # Create a main cluster for given version ($1) if no cluster already exists
+    # Create a main cluster for given version ($VERSION) if no cluster already exists
     # for that version and we are installing from scratch.
     [ "$VERSION" ] || { echo "Error: configure_version: need version parameter" >&2; exit 1; }
     if [ ! -d "/etc/postgresql/$VERSION" ] || [ -z "$(ls /etc/postgresql/$VERSION)" ] || \
@@ -95,7 +100,8 @@ or a similar command (see 'man pg_createcluster')." >&2
         fi
     fi
 
-    _link_manpages "$VERSION" postmaster.1.gz "postgresql-$1" "postgresql-contrib-$1"
+    relink_postmaster_manpages
+    _link_manpages "$VERSION" psql.1.gz "postgresql-client-$PKG_VER" "postgresql-$PKG_VER" "postgresql-contrib-$PKG_VER"
 
     # check if our catalog version changed
     postinst_check_catversion "$VERSION"
@@ -114,44 +120,60 @@ or a similar command (see 'man pg_createcluster')." >&2
 }
 
 stop_version() {
+    VERSION="$1"
     if [ -d /run/systemd/system ]; then
         # cannot use invoke-rc.d here because jessie's version doesn't like patterns
-        deb-systemd-invoke stop "postgresql@$1-*"
+        deb-systemd-invoke stop "postgresql@$VERSION-*"
     else
-        invoke-rc.d postgresql stop $1
+        invoke-rc.d postgresql stop $VERSION
     fi
 }
 
 remove_version() {
-    _unlink_manpages "$1" postmaster.1.gz
-    _remove_tsearch "$1"
+    VERSION="$1"
+    PKG_VER="${2:-$1}"
+    # we still want to retain the alternatives for the client packages
+    _link_manpages "$VERSION" psql.1.gz "postgresql-client-$PKG_VER"
+    _remove_tsearch "$VERSION"
     # update list of packages not to apt-autoremove
     /usr/share/postgresql-common/pg_updateaptconfig
 }
 
 configure_client_version() {
-    _link_manpages "$1" psql.1.gz "postgresql-client-$1"
+    VERSION="$1"
+    PKG_VER="${3:-$1}"
+    relink_postmaster_manpages
+    _link_manpages "$VERSION" psql.1.gz "postgresql-client-$PKG_VER" "postgresql-$PKG_VER" "postgresql-contrib-$PKG_VER"
 }
 
 remove_client_version() {
-    _unlink_manpages "$1" psql.1.gz
+    VERSION="$1"
+    _unlink_manpages "$VERSION" psql.1.gz
 }
 
 configure_contrib_version() {
-    _link_manpages "$1" postmaster.1.gz "postgresql-$1" "postgresql-contrib-$1"
+    VERSION="$1"
+    PKG_VER="${3:-$1}"
+    relink_postmaster_manpages
+    _link_manpages "$VERSION" psql.1.gz "postgresql-client-$PKG_VER" "postgresql-$PKG_VER" "postgresql-contrib-$PKG_VER"
 }
 
 remove_contrib_version() {
+    VERSION="$1"
+    PKG_VER="${2:-$1}"
     # we still want to retain the alternatives for the server packages
-    _link_manpages "$1" postmaster.1.gz "postgresql-$1"
+    _link_manpages "$VERSION" psql.1.gz "postgresql-client-$1" "postgresql-$PKG_VER"
 }
 
 configure_doc_version() {
-    _link_manpages "$1" SPI_connect.3.gz "postgresql-doc-$1"
+    VERSION="$1"
+    PKG_VER="${3:-$1}"
+    _link_manpages "$VERSION" SPI_connect.3.gz "postgresql-doc-$PKG_VER"
 }
 
 remove_doc_version() {
-    _unlink_manpages "$1" SPI_connect.3.gz
+    VERSION="$1"
+    _unlink_manpages "$VERSION" SPI_connect.3.gz
 }
 
 # Compare the catalog version number of the installed package and the new
@@ -245,7 +267,7 @@ postinst_check_catversion()
 # start debconf if we are in the server's postinst (can't run from a function)
 if [ "${DPKG_MAINTSCRIPT_NAME:-}" = "postinst" ] && [ "$1" = "configure" ]; then
     case $DPKG_MAINTSCRIPT_PACKAGE in
-        postgresql-[89].?|postgresql-[1-9]?)
+        postgresql-[89].?|postgresql-[1-9]?|postgresql-[1-9]???) # -9.6 -15 -15ee
             . /usr/share/debconf/confmodule
             ;;
     esac

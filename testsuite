@@ -3,7 +3,7 @@
 # Run integration tests (on the installed packages).
 #
 # (C) 2005-2012 Martin Pitt <mpitt@debian.org>
-# (C) 2012-2022 Christoph Berg <myon@debian.org>
+# (C) 2012-2023 Christoph Berg <myon@debian.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@ help ()
     echo "Syntax: $0 [options] [test ...]"
     echo "    -D               drop all existing clusters (USE WITH CARE)"
     echo "    -f number        run tests starting at this number"
+    echo "    -F suffix        flavor suffix on package names, e.g. 'ee'"
     echo "    -i               install packages for versions specified by -v"
     echo "    -M               don't mount tmpfses, run in the host system"
     echo "    -s               start a shell in the testbed on failure"
@@ -37,10 +38,11 @@ help ()
 }
 
 # option parsing
-while getopts "Dhf:iMsu:v:V" opt ; do
+while getopts "Dhf:F:iMsu:v:V" opt ; do
     case $opt in
         D) DROP_ALL_CLUSTERS=1 ;;
         f) FROM="$OPTARG" ;;
+        F) export PG_FLAVOR="$OPTARG" ;;
         i) INSTALL=1 ;;
         h) help ;;
         M) export NO_TMPFS=1 ;;
@@ -65,20 +67,22 @@ if [ "${INSTALL:-}" ] && [ -z "${UNSHARED:-}" ]; then
         debian|ubuntu)
             for v in $PG_VERSIONS; do
                 case $v in 8.*|9.*|10|11)
-                    [ "$(perl -I. -le 'use PgCommon; print $PgCommon::have_python2')" = "1" ] && PYTHON2_PACKAGE=postgresql-plpython-$v
+                    [ "$(perl -I. -le 'use PgCommon; print $PgCommon::have_python2')" = "1" ] && PYTHON2_PACKAGE=postgresql-plpython-$v${PG_FLAVOR:=}
                     ;;
                 esac
                 apt-get install -y \
-                    postgresql-contrib-$v \
-                    postgresql-plperl-$v \
+                    postgresql-contrib-$v${PG_FLAVOR:=} \
+                    postgresql-plperl-$v$PG_FLAVOR \
                     ${PYTHON2_PACKAGE:-} \
-                    $(dpkg --compare-versions $v ge 9.1 && echo postgresql-plpython3-$v) \
-                    postgresql-pltcl-$v \
-                    postgresql-server-dev-$v
+                    $(dpkg --compare-versions $v ge 9.1 && echo postgresql-plpython3-$v$PG_FLAVOR) \
+                    postgresql-pltcl-$v$PG_FLAVOR \
+                    postgresql-server-dev-$v$PG_FLAVOR \
+                    postgresql-doc-$v$PG_FLAVOR
             done
             apt-get install -y \
                 debhelper \
                 libecpg-dev \
+                locales-all \
                 procps systemd \
                 netcat-openbsd \
                 hunspell-en-us \
@@ -88,11 +92,12 @@ if [ "${INSTALL:-}" ] && [ -z "${UNSHARED:-}" ]; then
             for v in $PG_VERSIONS; do
                 vv=$(echo $v | tr -d .)
                 yum install -y \
-                    postgresql$vv-contrib \
-                    postgresql$vv-plperl \
-                    postgresql$vv-plpython3 \
-                    postgresql$vv-pltcl \
-                    postgresql$vv-devel
+                    postgresql$vv${PG_FLAVOR:=}-contrib \
+                    postgresql$vv$PG_FLAVOR-plperl \
+                    postgresql$vv$PG_FLAVOR-plpython3 \
+                    postgresql$vv$PG_FLAVOR-pltcl \
+                    postgresql$vv$PG_FLAVOR-devel \
+                    postgresql$vv$PG_FLAVOR-doc
             done
             yum install -y \
                 nmap-ncat \
@@ -135,6 +140,7 @@ if [ -z "${NO_TMPFS:-}" ]; then
         sed -i -e '/# by pg-testsuite/d' /etc/postgresql-common/createcluster.conf
         ./pg_updateaptconfig
         systemctl daemon-reload 2> /dev/null || : # poke generator to handle the system's clusters again
+        exit
     }
     trap "cleanup" 0 HUP INT QUIT ILL ABRT PIPE TERM
 

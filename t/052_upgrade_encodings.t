@@ -5,7 +5,7 @@ use strict;
 use lib 't';
 use TestLib;
 use PgCommon;
-use Test::More tests => (@MAJORS == 1) ? 1 : 43;
+use Test::More tests => (@MAJORS == 1) ? 1 : 46;
 
 if (@MAJORS == 1) {
         pass 'only one major version installed, skipping upgrade tests';
@@ -28,6 +28,11 @@ if ($oldv <= '8.3') {
     is ((exec_as 'postgres', 'psql -c "create database asctest template = template0 lc_collate = \'C\' lc_ctype = \'C\' encoding = \'SQL_ASCII\'" template1', $outref), 0,
 	"creating asctest DB with C locale");
 }
+if ($oldv >= 15) {
+    program_ok 'postgres', 'psql -c "create database icutest template template0 locale_provider icu icu_locale de"', 0, "creating database with ICU locale";
+} else {
+    program_ok 'postgres', 'psql -c "create database icutest"', 0, "creating placeholder icutest database";
+}
 
 is ((exec_as 'postgres', "printf 'A\\324B' | psql -c \"create table t(x varchar); copy t from stdin\" latintest", $outref), 
     0, 'write LATIN database content to latintest');
@@ -42,6 +47,11 @@ is_program_out 'postgres', "echo \"select * from t\" | psql -Atq asctest",
 is ((exec_as 'postgres', 'psql -Atl', $outref), 0, 'psql -Atl on old cluster');
 ok ((index $$outref, 'latintest|postgres|ISO_8859_5') >= 0, 'latintest is LATIN encoded');
 ok ((index $$outref, 'asctest|postgres|SQL_ASCII') >= 0, 'asctest is ASCII encoded');
+if ($oldv >= 15) {
+    like $$outref, qr/icutest\|postgres\|ISO_8859_5\|icu\|ru_RU\|ru_RU\|de/, 'icutest has proper icu locale';
+} else {
+    like $$outref, qr/icutest\|postgres\|ISO_8859_5/, 'icutest is LATIN encoded';
+}
 ok ((index $$outref, 'template1|postgres|ISO_8859_5') >= 0, 'template1 is LATIN encoded');
 
 # upgrade without specifying locales, should be kept
@@ -50,6 +60,11 @@ like_program_out 0, "pg_upgradecluster -v $newv $oldv main", 0, qr/^Success. Ple
 is ((exec_as 'postgres', "psql --cluster $newv/main -Atl", $outref), 0, 'psql -Atl on upgraded cluster');
 ok ((index $$outref, 'latintest|postgres|ISO_8859_5') >= 0, 'latintest is LATIN encoded');
 ok ((index $$outref, 'asctest|postgres|SQL_ASCII') >= 0, 'asctest is ASCII encoded');
+if ($oldv >= 15) {
+    like $$outref, qr/icutest\|postgres\|ISO_8859_5\|icu\|ru_RU\|ru_RU\|de/, 'icutest has proper icu locale';
+} else {
+    like $$outref, qr/icutest\|postgres\|ISO_8859_5/, 'icutest is LATIN encoded';
+}
 ok ((index $$outref, 'template1|postgres|ISO_8859_5') >= 0, 'template1 is LATIN encoded');
 is_program_out 'postgres', "echo \"select * from t\" | psql --cluster $newv/main -Atq latintest",
     0, "A\324B\n", 'new latintest DB has correctly encoded string';

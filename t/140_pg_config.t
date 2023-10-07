@@ -47,13 +47,13 @@ foreach $version (@MAJORS) {
             skip 'abs_top_builddir introduced in 9.5', 2 if ($version < 9.5);
             skip 'abs_top_builddir not patched in Debian (old)stable', 2 if ($version < 10 and $pkgversion !~ /pgdg/);
             is_program_out 'postgres', "grep ^abs_top_builddir $PgCommon::binroot$version/lib/pgxs/src/Makefile.global", 0,
-                "abs_top_builddir = /build/postgresql-$version/build\n";
+                "abs_top_builddir = /build/postgresql-$version$ENV{PG_FLAVOR}/build\n";
         }
         SKIP: {
             skip 'abs_top_srcdir not patched before 9.3', 2 if ($version < 9.3);
             skip 'abs_top_srcdir not patched in Debian (old)stable', 2 if ($version < 10 and $pkgversion !~ /pgdg/);
             is_program_out 'postgres', "grep ^abs_top_srcdir $PgCommon::binroot$version/lib/pgxs/src/Makefile.global", 0,
-                "abs_top_srcdir = /build/postgresql-$version/build/..\n";
+                "abs_top_srcdir = /build/postgresql-$version$ENV{PG_FLAVOR}/build/..\n";
         }
     }
 }

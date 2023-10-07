@@ -5,7 +5,7 @@ PgCommon - Common functions for the postgresql-common framework
 =head1 COPYRIGHT AND LICENSE
 
  (C) 2008-2009 Martin Pitt <mpitt@debian.org>
- (C) 2012-2022 Christoph Berg <myon@debian.org>
+ (C) 2012-2023 Christoph Berg <myon@debian.org>
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -57,12 +57,6 @@ sub error {
     die "Error: $_[0]\n";
 }
 
-=head2 prepare_exec, restore_exec
-
- Functions for configuration
-
-=cut
-
 our $confroot = '/etc/postgresql';
 if ($ENV{'PG_CLUSTER_CONF_ROOT'}) {
     ($confroot) = $ENV{'PG_CLUSTER_CONF_ROOT'} =~ /(.*)/; # untaint
@@ -80,11 +74,18 @@ our $defaultport = 5432;
 our $have_python2 = 0; # python2 removed in bullseye+
 #py2#$have_python2 = 1;
 
+=head2 prepare_exec, restore_exec
+
+ Untaint the environment for executing an external program
+
+ Optional arguments: list of additional variables
+
+=cut
+
 {
     my %saved_env;
 
     # untaint the environment for executing an external program
-    # Optional arguments: list of additional variables
     sub prepare_exec {
 	my @cleanvars = qw/PATH IFS ENV BASH_ENV CDPATH/;
 	push @cleanvars, @_;
@@ -95,7 +96,7 @@ our $have_python2 = 0; # python2 removed in bullseye+
 	    delete $ENV{$_};
 	}
 
-	$ENV{'PATH'} = '';
+	$ENV{'PATH'} = '/sbin:/bin:/usr/sbin:/usr/bin';
     }
 
     # restore the environment after prepare_exec()
@@ -1348,6 +1349,8 @@ sub get_db_encoding {
 
  Arguments: <version> <cluster> <database>
  Returns: (LC_CTYPE, LC_COLLATE) or (undef,undef) if it cannot be determined.
+ PG15 adds locale provider and icu locale to the returned values
+ PG16 adds icu rules
 
 =cut
 
@@ -1357,30 +1360,39 @@ sub get_db_locales {
     my $socketdir = get_cluster_socketdir $version, $cluster;
     my $psql = get_program_path 'psql', $version;
     return undef unless ($port && $socketdir && $psql);
-    my ($ctype, $collate);
+    my ($ctype, $collate, $locale_provider, $icu_locale, $icu_rules);
 
     # try to switch to cluster owner
     prepare_exec 'LC_ALL';
     $ENV{'LC_ALL'} = 'C';
     my $orig_euid = $>;
     $> = (stat (cluster_data_directory $version, $cluster))[4];
+
     open PSQL, '-|', $psql, '-h', $socketdir, '-p', $port, '-AXtc',
-        'SHOW lc_ctype', $db or
-        die "Internal error: could not call $psql to determine db lc_ctype: $!";
-    my $out = <PSQL> // error 'could not determine db lc_ctype';
+        "SELECT datctype, datcollate FROM pg_database where datname = current_database()", $db or
+        die "Internal error: could not call $psql to determine datctype and datcollate: $!";
+    my $out = <PSQL> // error 'could not determine datctype and datcollate';
     close PSQL;
-    ($ctype) = $out =~ /^([\w.\@-]+)$/; # untaint
-    open PSQL, '-|', $psql, '-h', $socketdir, '-p', $port, '-AXtc',
-        'SHOW lc_collate', $db or
-        die "Internal error: could not call $psql to determine db lc_collate: $!";
-    $out = <PSQL> // error 'could not determine db lc_collate';
-    close PSQL;
-    ($collate) = $out =~ /^([\w.\@-]+)$/; # untaint
+    ($out) = $out =~ /^(.*)$/; # untaint
+    ($ctype, $collate) = split /\|/, $out;
+
+    if ($version >= 15) {
+        open PSQL, '-|', $psql, '-h', $socketdir, '-p', $port, '-AXtc',
+            "SELECT CASE datlocprovider::text WHEN 'c' THEN 'libc' WHEN 'i' THEN 'icu' END, daticulocale" .
+            ($version >= 16 ? ", daticurules" : "") .
+            " FROM pg_database where datname = current_database()", $db or
+            die "Internal error: could not call $psql to determine datlocprovider: $!";
+        $out = <PSQL> // error 'could not determine datlocprovider';
+        close PSQL;
+        ($out) = $out =~ /^(.*)$/; # untaint
+        ($locale_provider, $icu_locale, $icu_rules) = split /\|/, $out;
+    }
+
     $> = $orig_euid;
     restore_exec;
     chomp $ctype;
     chomp $collate;
-    return ($ctype, $collate) unless $?;
+    return ($ctype, $collate, $locale_provider, $icu_locale, $icu_rules) unless $?;
     return (undef, undef);
 }
 
