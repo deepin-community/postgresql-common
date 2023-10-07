@@ -37,11 +37,11 @@
 # X: consider this version supported
 #
 # (C) 2005-2016 Martin Pitt <mpitt@debian.org>
-# (C) 2012-2022 Christoph Berg <myon@debian.org>
+# (C) 2012-2023 Christoph Berg <myon@debian.org>
 
 set -eu
 
-DEFAULT="15"
+DEFAULT="16"
 
 # functions
 
@@ -90,6 +90,7 @@ pgdg() {
 	13
 	14
 	15
+	16
 	EOF
 }
 

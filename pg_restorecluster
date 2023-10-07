@@ -109,6 +109,7 @@ sub create_cluster($$$$$) {
         "--datadir", $datadir,
         "--user", $owneruid, "--group", $ownergid,
         $version, $cluster,
+        "--",
         @createclusteropts;
 }
 

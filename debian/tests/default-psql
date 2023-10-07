@@ -4,9 +4,9 @@
 set -e
 
 # disabled default cluster creation?
-if grep -q '\bcreate_main_cluster\b.*\bfalse\b' /etc/postgresql-common/createcluster.conf; then
+if grep -rq '^create_main_cluster\b.*\bfalse\b' /etc/postgresql-common/createcluster.*; then
     echo "SKIP: default cluster creation disabled in createcluster.conf"
-    exit 0
+    exit 77
 fi
 
 if ! pg_lsclusters | grep -q 'main .* online'; then

@@ -1,3 +1,80 @@
+postgresql-common (255) unstable; urgency=medium
+
+  * PgCommon.pm: Set defined path in prepare_exec. Thanks Niko Tyni!
+  * debian/supported-versions: Add 16 as default version.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 14 Sep 2023 10:35:53 +0200
+
+postgresql-common (254) unstable; urgency=medium
+
+  * /etc/postgresql-common/pg_upgradecluster.d/analyze: Automatically analyze
+    databases after upgrade.
+  * pg_upgradecluster: drop hard-coded analyze used in dump mode only.
+  * server: Ignore test results on ia64 and sh4.
+  * pg_upgradecluster: Honor --keep-on-error not just for failing upgrade
+    scripts; properly start old cluster again after errors. On PG15+, move
+    pg_upgrade output from pg_upgrade_output.d to /var/log/postgresql/.
+    Remove force_parallel_mode in PG16+.
+  * Thanks to Dagfinn Ilmari Mannsåker for helping with the patches!
+  * Remove /usr/share/postgresql-common/upgrade-scripts, upgrade scripts for
+    postgresql-common itself. I believe this functionality was never used.
+  * pgdg/apt.postgresql.org.sh: Set umask 022.
+
+ -- Christoph Berg <myon@debian.org>  Thu, 07 Sep 2023 11:12:30 +0200
+
+postgresql-common (253) unstable; urgency=medium
+
+  * pg_upgradecluster: Remove db_user_namespace in PG17.
+  * t/045_backup.t: Relax analyze_count check that's flaky on s390x.
+  * pgdg/apt.postgresql.org.sh: Allow multiple versions in -v.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 09 Aug 2023 11:51:21 +0200
+
+postgresql-common (252) unstable; urgency=medium
+
+  * pg_upgradecluster: Add --keep-on-error option.
+  * PgCommon get_db_locales: PG16 removes lc_ctype and lc_collate GUCs, query
+    pg_database instead.
+  * t/050_encodings.t: Revert back to old LC_ALL=C behavior.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 01 Jul 2023 20:45:40 +0200
+
+postgresql-common (251) unstable; urgency=medium
+
+  * Refresh pgdg/apt.postgresql.org.sh.
+
+ -- Christoph Berg <myon@debian.org>  Fri, 30 Jun 2023 12:42:37 +0200
+
+postgresql-common (250) experimental; urgency=medium
+
+  * server/postgresql.mk: Fix ignoring test failures on alpha; ignore test
+    results on hppa and sparc64.
+  * pg_upgradecluster: Remove vacuum_defer_cleanup_age in PG16.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 24 May 2023 10:41:06 +0200
+
+postgresql-common (249) experimental; urgency=medium
+
+  * Merge postmaster.1.gz alternatives into psql.1.gz link group.
+  * Test-Depend on postgresql-doc to test the man3 alternatives.
+  * Depend on sysvinit-utils alternatively to obsolete lsb-base.
+  * server/postgresql.mk: Allow setting MAJOR_PKG for custom server packages.
+  * server/catversion: Also extract catalog file version number.
+  * debian/maintscripts-functions: Support flavored server packages.
+  * testsuite: Support flavored server packages (testsuite -F ee).
+  * pg_upgradecluster: Copy encryption_key_command from old cluster to support
+    PostgreSQL TDE.
+  * pg_backupcluster, t/045_backup.t: Handle icu-encoded clusters and
+    databases.
+  * pg_backupcluster: Support passing --checkpoint=fast to pg_basebackup.
+  * pg_restorecluster: Pass extra pg_createcluster arguments after --.
+  * t/050_encodings.t: Accept en_US_POSIX-encoded cluster with LANG=C on PG16.
+  * pg_upgradecluster, t/052_upgrade_encodings.t: Preserve ICU locale when
+    upgrading from PG15+.
+  * debian/tests/default-psql: Mark as skippable and honor createcluster.d.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 10 May 2023 21:11:56 +0200
+
 postgresql-common (248) unstable; urgency=medium
 
   [ Christoph Berg ]

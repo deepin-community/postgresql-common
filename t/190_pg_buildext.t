@@ -54,11 +54,11 @@ foreach my $ver (@versions) {
         my $have_extension_destdir = `grep extension_destdir /usr/share/postgresql/$ver/postgresql.conf.sample`;
         skip "No in-tree installcheck on PG $ver (missing extension_destdir)", 2 unless ($have_extension_destdir);
         like_program_out 'nobody', "cd foo-123 && PG_SUPPORTED_VERSIONS=$ver dh_pgxs_test",
-            0, qr/PostgreSQL $ver installcheck.*test foo * \.\.\. ok/s;
+            0, qr/PostgreSQL $ver installcheck.*(test foo * \.\.\. ok|ok 1 * - foo)/s; # old/new PG 16 syntax
     }
     program_ok 0, "dpkg -i $deb";
     like_program_out 'nobody', "cd foo-123 && pg_buildext installcheck",
-        0, qr/PostgreSQL $ver installcheck.*test foo * \.\.\. ok/s;
+        0, qr/PostgreSQL $ver installcheck.*(test foo * \.\.\. ok|ok 1 * - foo)/s;
     like_program_out 'nobody', "cd foo-123 && echo 'SELECT 3*41, version()' | pg_buildext psql", 0, qr/123.*PostgreSQL $ver/;
     like_program_out 'nobody', "cd foo-123 && echo 'echo --\$PGVERSION--' | pg_buildext virtualenv", 0, qr/--$ver--/;
     program_ok 0, "dpkg -r postgresql-$ver-foo";

@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# Extract server catalog and control file version numbers.
+# This information is stored in the packages and used at install time to
+# determine if an in-major-version pg_upgradecluster is required.
+
+set -eu
+
+CATVERSION=$(awk '/^#define CATALOG_VERSION_NO/ { print $3 }' src/include/catalog/catversion.h)
+CONTROLVERSION=$(awk '/^#define PG_CONTROL_VERSION/ { print $3 }' src/include/catalog/pg_control.h)
+
+case $CONTROLVERSION in
+    # control file versions used in PG 9.6 .. 15
+    # don't append to catversion to avoid spurious warnings for users of existing packages
+    960|1002|1100|1201|1300) echo "$CATVERSION" ;;
+    *) echo "$CATVERSION-$CONTROLVERSION" ;;
+esac

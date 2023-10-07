@@ -32,12 +32,15 @@ foreach my $v (@MAJORS) {
         program_ok 0, "pg_conftool $v main set ssl off" if ($v <= 9.1); # cert symlinks not backed up in 9.1
         program_ok 0, "pg_ctlcluster $v main restart";
     }
-    program_ok $pg_uid, "createdb -E SQL_ASCII -T template0 mydb";
+    my $locale_provider = $v >= 15 ? "--locale-provider libc " : "";
+    program_ok $pg_uid, "createdb -E SQL_ASCII $locale_provider-T template0 mydb";
     program_ok $pg_uid, "psql -c 'alter database mydb set search_path=public'";
     program_ok $pg_uid, "psql -c 'create table foo (t text)' mydb";
     program_ok $pg_uid, "psql -c \"insert into foo values ('data from backup')\" mydb";
     program_ok $pg_uid, "psql -c 'CREATE USER myuser'";
     program_ok $pg_uid, "psql -c 'alter role myuser set search_path=public, myschema'";
+    program_ok $pg_uid, "createdb --locale-provider icu --icu-locale de -T template0 myicudb" if ($v >= 15);
+
     SKIP: { # in PG 10, ARID is part of globals.sql which we try to restore before databases.sql
         skip "alter role in database handling in PG <= 10 not supported", 1 if ($v <= 10);
         program_ok $pg_uid, "psql -c 'alter role myuser in database mydb set search_path=public, myotherschema'";
@@ -93,7 +96,7 @@ foreach my $v (@MAJORS) {
     if ($systemd) {
         program_ok 0, "systemctl start pg_basebackup\@$v-main";
     } else {
-        program_ok 0, "pg_backupcluster $v main basebackup";
+        program_ok 0, "pg_backupcluster --checkpoint=fast $v main basebackup";
     }
     my ($basebackup) = glob "$dir/*.backup";
     ok -d $basebackup, "dump created in $basebackup";
@@ -126,16 +129,14 @@ foreach my $v (@MAJORS) {
         program_ok 0, "pg_dropcluster $v main --stop";
         program_ok 0, "pg_restorecluster $v main $backup --start --datadir /var/lib/postgresql/$v/snowflake";
         like_program_out 0, "pg_lsclusters -h", 0, qr/$v main 5432 online postgres .var.lib.postgresql.$v.snowflake/;
-        like_program_out $pg_uid, "psql -XAtl", 0, qr%mydb\|postgres\|SQL_ASCII\|en_US.UTF-8\|en_US.UTF-8\|(\|libc\|)?
-postgres\|postgres\|UTF8\|en_US.UTF-8\|en_US.UTF-8\|(\|libc\|)?
-template0\|postgres\|UTF8\|en_US.UTF-8\|en_US.UTF-8\|(\|libc\|)?=c/postgres
-postgres=CTc/postgres
-template1\|postgres\|UTF8\|en_US.UTF-8\|en_US.UTF-8\|(\|libc\|)?=c/postgres
-postgres=CTc/postgres\n%;
+        my $outref;
+        is exec_as($pg_uid, "psql -XAtl", $outref), 0, 'psql -XAtl';
+        like $$outref, qr/^mydb\|postgres\|SQL_ASCII\|(libc\|)?en_US.UTF-8\|en_US.UTF-8\|(\|libc\||\|\|)?$/m, "mydb locales";
+        like $$outref, qr/^myicudb\|postgres\|UTF8\|(icu\|)?en_US.UTF-8\|en_US.UTF-8\|(de\|icu\||de\|\|)?$/m, "myicudb locales" if ($v >= 15);
         is_program_out $pg_uid, "psql -XAtc 'show work_mem'", 0, "11MB\n";
         is_program_out $pg_uid, "psql -XAtc 'select * from foo' mydb", 0, "data from backup\n";
-        is_program_out $pg_uid, "psql -XAtc \"select analyze_count from pg_stat_user_tables where relname = 'foo'\" mydb", 0,
-            ($v >= 9.4 ? "3\n" : "1\n"); # --analyze-in-stages does 3 passes
+        is_program_out $pg_uid, "psql -XAtc \"select analyze_count between 1 and 3 from pg_stat_user_tables where relname = 'foo'\" mydb", 0,
+            "t\n"; # --analyze-in-stages does 3 passes
         SKIP: {
             skip "alter role in database handling in PG <= 10 not supported", 1 if ($v <= 10);
             like_program_out $pg_uid, "psql -XAtc '\\drds'", 0, qr/myuser\|mydb\|search_path=public, myotherschema.*

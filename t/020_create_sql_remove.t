@@ -360,8 +360,10 @@ tel|2
     close RH;
     select WH; $| = 1; # make unbuffered
 
-    my $master_pid = `ps --user postgres hu | grep 'bin/postgres.*-D' | grep -v grep | awk '{print \$2}'`;
+    open my $pidfile, "/var/lib/postgresql/$v/main/postmaster.pid";
+    my $master_pid = <$pidfile>;
     chomp $master_pid;
+    close $pidfile;
 
     my $client_pid;
     while (!$client_pid) {

@@ -1,7 +1,7 @@
 Tests: default-psql
 Depends:
  postgresql,
-Restrictions: needs-root
+Restrictions: needs-root, skippable
 
 Tests: run-testsuite
 Depends:
@@ -15,5 +15,6 @@ Depends:
  netcat-openbsd,
  perl,
  postgresql-all,
+ postgresql-doc,
  procps,
 Restrictions: needs-root
